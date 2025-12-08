@@ -1,0 +1,162 @@
+---
+title: "Assignment 1 - Linear Regression and Model Evaluation"
+author: "Benett Dervishaj"
+date: "2025-10-24"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r}
+library(GGally)
+library(ggfortify)
+library(lmtest)
+library(MASS)
+library(tidyverse)
+library(regclass)
+library(caret)
+library(performance)
+library(tinytex)
+
+full_dat <- read.csv("ncaaSeason.csv")
+dat <- full_dat %>%
+  select(Win..,
+         FG.,
+         TS.,
+         ORB.,
+         DRB.,
+         AST.,
+         TOV.,
+         STL.,
+         BLK.,
+         Pace,
+         FT.FGA) %>%
+  rename(Win_Pct = Win..,
+         FG_Pct = FG.,
+         TS_Pct = TS.,
+         ORBR = ORB.,
+         DRBR = DRB.,
+         ASTR = AST.,
+         TOVR = TOV.,
+         STLR = STL.,
+         BLKR = BLK.,
+         Pace = Pace,
+         FT_FGA = FT.FGA)
+```
+
+```{r}
+# Question 1: Interpreting R-Squared
+WPCT_mod <- lm(Win_Pct ~ FG_Pct, data = dat)
+summary(WPCT_mod)
+
+# The r-squared value of 0.4047 indicates that the independent variable (Field Goal Percentage) accounts for 40.47% of the variability in win percentage for this NCAA data. This implies that the metric selected (Field Goal percentage) does not have the strongest overall impact on Win Percentage. Considering that there are other important metrics in this data frame (dat), we would likely have to run a multiple linear regression to investigate the impact of those predictors on overall win percentage.
+```
+
+```{r}
+# Question 2: Interpreting R-Squared for Multiple Linear Regression Model
+WPCT_all_metrics <- lm(Win_Pct ~ FG_Pct + TS_Pct + ORBR + DRBR + ASTR + TOVR + STLR + BLKR + Pace + FT_FGA, data = dat)
+summary(WPCT_all_metrics)
+
+# The r-squared value of 0.7354 indicates that the independent variables account for 73.54% of the variability in win percentage for this NCAA data. This implies that the metrics selected have a strong impact on win percentage. R-squared has noticeably increased from the previous model that consisted of only field goal percentage (0.4047), this is not surprising because typically the more variables included in an regression model, the more likely it is that the combination will all have an impact on the dependent variable, win percentage. However it is likely that the more variables you add, the likelier it is to encounter multicollinearity, which will need to be viewed and addressed.
+```
+
+```{r}
+# Question 3: Multicollinearity
+VIF(WPCT_all_metrics)
+
+# There appears to be an issue with multicollinearity in the model. The issue is with Field Goal Percentage and True Shot Percentage, which accounts for a high variance inflation factor of 7.20 and 8.58 respectively. All other variables are below a value of 2, which means there is no indication of strong multicollinearity between those variables. We will now address for multicollinearity by removing FG_Pct or TS_Pct and re-running the model.
+
+# Adjusted Model (No True Shot Percentage)
+WPCT_adjusted <- lm(Win_Pct ~ FG_Pct + ORBR + DRBR + ASTR + TOVR + STLR + BLKR + Pace + FT_FGA, data = dat)
+summary(WPCT_adjusted)
+
+# Testing for Multicollinearity
+VIF(WPCT_adjusted)
+
+# Confirming that Multicollinearity has been addressed, as seen in the VIF values.
+```
+
+```{r}
+# Question 4: Splitting the Data and Re-Running Models
+set.seed(123)
+n <- nrow(dat)
+split <- 0.80
+
+train <- sample(n, size = n * split)
+
+dat_train <- dat[train, ]
+dat_test <- dat[-train, ]
+
+# Models against the Training Data
+
+# Model 1: Win Percentage and Field Goal Percentage
+WPCT_mod_train <- lm(Win_Pct ~ FG_Pct, data = dat_train)
+summary(WPCT_mod_train)
+
+# Model 2: Win Percentage and Multicollinearity Addressed Model
+WPCT_adjusted_train <- lm(Win_Pct ~ FG_Pct + ORBR + DRBR + ASTR + TOVR + STLR + BLKR + Pace + FT_FGA, data = dat_train)
+summary(WPCT_adjusted_train)
+
+# Model 3: New Model (5 Predictors)
+WPCT_new <- lm(Win_Pct ~ TS_Pct + ORBR + TOVR + Pace + FT_FGA, data = dat_train)
+summary(WPCT_new)
+
+# RMSE Calculations
+rmse(WPCT_mod_train) # First Model
+rmse(WPCT_adjusted_train) # Second Model
+rmse(WPCT_new) # Third Model
+
+# The second model contains the lowest test RMSE. This model has all predictors excluding True Shot Percentage.
+```
+
+```{r}
+# Question 5 - Interpreting Slope
+
+# Given the regression model estimates, the slope of True Shot Percentage explains that every 1 percent increase in True Shot Percentage, will result in Win Percentage increasing by 3.47%. What helps emphasize this is the significant p-value, which indicates a strong correlation to the dependent variable, win percentage.
+```
+
+```{r}
+# Question 6 - Assumptions of Third Model
+
+# Test 1: Testing Normality
+factors_res <- data.frame(resid = WPCT_new$residuals)
+ggplot(factors_res, aes(sample = resid)) +
+  stat_qq() +
+  stat_qq_line()
+
+# The line is linear, and the data falls along this line. We can assume normality because these percentiles and standardizations look very similar to normal distribution, however the Shapiro-Wilk Test will be more impactful in understanding if our data assumes normality.
+
+# Test 2: Shapiro Wilk Test (Formal)
+shapiro.test(factors_res$resid)
+
+# We reject the null hypothesis given the 10, 15 and 20 percent thresholds in order to avoid the probability of a Type II error. The p-value of 0.04 is significant at all thresholds above 5%, and indicates that the results are NOT normally distributed based on this test.
+
+# Test 3: Testing Constant Variance (Homoskedasticity)
+data.frame(fitted_values = WPCT_new$fitted.values, std_resids = scale(factors_res$resid)) %>%
+  ggplot(aes(fitted_values, std_resids)) +
+  geom_point()
+
+
+# The data is generally spread out, but the spread of the data as x increases indicates that the change is not drastic. This visualization indicates that there isn't any clear change in standard deviation, so it is safe to assume homoskedasticity.
+
+# Test 4: Independence Test (Durbin-Watson)
+dwtest(WPCT_new, alternative = "two.sided")
+
+# We can reject the null hypothesis if we were using 0.15 or 0.20 as the threshold of testing independence. If we are using 0.1, we fail to reject the null hypothesis. We do this to limit the probability of a Type II error. The p-value of 0.11 infers that the independence assumption among our observations is not met if using a 10 percent threshold.
+
+# In order to correct for unmet assumptions, we would could do the following:
+# Add quadratic or other non linear terms for non-linear effects
+# Run a time series model where each new observation is dependent on each observation
+# Transform the DV (Win Percentage) by using ln(Y), log(Y) or Square Root(Y) OR
+# Apply the Box-Cox Transformation to the Y variable.
+```
+
+```{r}
+# Question 7 - Feasible Ranges of Win Percentage
+ranges <- data.frame(TS_Pct = 0.55, ORBR = 26.7, TOVR = 21.2, Pace = 74.3, FT_FGA = 0.24)
+predict(WPCT_new, newdata = ranges, interval = "prediction")
+
+# Given the lower amount of 13.29% (0.1329) and the upper amount of 55.05% (0.5505). The win percentage range would be between 13.29% and 55.05%.
+```
+

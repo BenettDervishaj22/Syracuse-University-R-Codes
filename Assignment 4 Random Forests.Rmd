@@ -1,0 +1,139 @@
+---
+title: "Assignment 5 Random Forests"
+author: "Benett Dervishaj"
+date: "2025-11-20"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(purrr)
+library(dplyr)
+library(randomForest)
+library(performance)
+library(rpart)
+library(rpart.plot)
+library(GGally)
+library(ggfortify)
+library(ggplot2)
+library(regclass)
+library(MASS)
+library(lmtest)
+library(caret)
+library(DescTools)
+library(tinytex)
+```
+
+```{r}
+# Question 1 Loading in the Data
+set.seed(01042024)
+su_dat <- read_csv("wnba-team-elo-ratings.csv") %>%
+  mutate(score_diff = score1 - score2)
+```
+
+```{r}
+# Question 1 Investigating the Data
+glimpse(su_dat)
+
+# su_dat contains data from WNBA teams. There are dates, teams, team names, neutral and playoff classifiers, score1, score 2, rating 1 and 2 pre, rating 1 and 2 post, probability, and finally the score differential which was mutated into the data frame.
+
+summary(su_dat)
+
+# Scores: The mean score of team 1 is 75.79 points, compared to team 2's mean score of 72.55. Indicating that on average team 1 scored more points than team 2. This could mean match ups were favored in team 1's favor, but that isn't known.
+
+# Score Differential: The mean score differential is 3.244, which means on average this was the difference between score 1 and score 2. Implying that the league often had close games, and there weren't a ton of lop-sided games on average.
+
+# Elo_pre 1 and 2: Ranges from 1183 to 1741. Means for both are 1495 and 1493 respectively, which shows the teams are closely rated prior to the game on average.
+
+# Elo post 1 and 2: Ranges from 1168 to 1741. Means for both are 1493 and 1493 respectively, shows that the teams are closely rated after the game on average.
+
+# Playoffs: Mean is 0.07323 which means 7.3 percent of the data is playoff data, while the rest is likely regular season.
+```
+
+```{r}
+# Question 2 Random Forest (No splitting or training)
+set.seed(101350)
+
+random_forest_model <- randomForest(
+  score_diff ~ elo1_pre + elo2_pre + playoff,
+  data = su_dat,
+  ntree = 450,
+  importance = TRUE
+)
+
+print(random_forest_model)
+importance(random_forest_model)
+varImpPlot(random_forest_model)
+
+# Finding RMSE
+random_forest_model_mse <- tail(random_forest_model$mse, 1)
+random_forest_model_rmse <- sqrt(random_forest_model_mse)
+random_forest_model_rmse
+
+# The RMSE is 11.90208.
+```
+
+```{r}
+# Question 3 Tuning the Random Forest Model Using Training and Test Data
+set.seed(101350)
+
+train_ind <- sample(nrow(su_dat), nrow(su_dat) * 0.70) # 70%/30% split
+train_data <- su_dat[train_ind, ]
+test_data <- su_dat[-train_ind, ]
+
+# Function to find optimal ntree and nodesize
+find_term_val <- function(nodesize, ntree = 450){
+  mod <- randomForest(
+    score_diff ~ elo1_pre + elo2_pre + playoff,
+    data = train_data,
+    nodesize = nodesize,
+    ntree = ntree
+  )
+  preds <- predict(mod, newdata = test_data)
+  rmse <- sqrt(mean((preds - test_data$score_diff)^2))
+  return(rmse)
+}
+
+data_grid <- expand.grid(
+  ntree = c(100, 300, 500, 700, 1000),
+  nodesize = c(1, 3, 5, 7, 10)
+)
+
+data_results <- data_grid %>%
+  mutate(rmse = pmap_dbl(list(nodesize, ntree), find_term_val)) %>%
+  arrange(rmse)
+
+ideal <- data_results %>%
+  slice(1)
+
+ideal
+
+# The optimal number of trees is 700, while the minimum node size is 1. 
+```
+
+```{r}
+# Question 4 - New Random Forest Model Using Optimal Parameters (without splitting into test and training data)
+
+optimal_model <- randomForest(
+  score_diff ~ elo1_pre + elo2_pre + playoff,
+  data = su_dat,
+  ntree = 700,
+  nodesize = 1,
+  importance = TRUE,
+)
+
+print(optimal_model)
+importance(optimal_model)
+varImpPlot(optimal_model)
+
+# The predictor that has the largest effect on number of wins is elo2_pre, which is team 2's pre-game rating. This isn't the most significant variable by a lot, as elo1_pre is very close in significance, but numerically the elo2_pre is greater. This is viewed by the %IncMSE which is 50.94761 for elo1_pre, and 51.00059 for elo2_pre.
+
+# In basketball terms, team 2's pre-game rating has the largest affect on predicting score differential in the WNBA for this given data set. The actual rating, which measures the strength of the team determines the score differential for the game. This could be useful for teams who view strength of schedule before they begin their season.
+```
+

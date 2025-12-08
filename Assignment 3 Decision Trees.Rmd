@@ -1,0 +1,155 @@
+---
+title: "Week 4 Assignment Decision Trees"
+author: "Benett Dervishaj"
+date: "2025-11-16"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(GGally)
+library(ggfortify)
+library(lmtest)
+library(MASS)
+library(tidyverse)
+library(regclass)
+library(caret)
+library(performance)
+library(tinytex)
+library(DescTools)
+library(rpart)
+library(rpart.plot)
+```
+
+```{r}
+# Question 1 - Loading in Data and Investigating
+set.seed(20240320)
+teams <- read_csv("kenpom_23_pre_tourney.csv",
+                  show_col_types = FALSE)
+
+glimpse(teams)
+# Metrics for Tempo, Offensive and Defensive Efficiency
+summary(teams)
+
+# Tempo mean approximately 68, with range being 59 to 74. Indicating that the tempo for the teams in this data are not significantly varied.
+
+# Offensive Efficiency (AdjOE) mean approximately 105, range between 86 to 124. The wide range indicates that the less efficient temas are around the mid 80's, low 90's. This is more varied than Tempo.
+
+# Defensive Efficiency (AdjDE) mean approximately 105, rang being 87 to 121. The wide range indicates that the less efficient teams are around the higher range of 110 to 121. The better defenses allow less points. The spread is large, but less varied than Offensive Efficiency.
+
+# Seeding - NA's at 295, while there are a total of 363 teams (from TeamName category), so this means that 68 teams are seeded in this DF.
+```
+
+```{r}
+# Question 2 - Decision Tree
+set.seed(20240320)
+decision_tree <- rpart(
+  seed ~ AdjTempo + AdjOE + AdjDE,
+  data = teams,
+  method = "anova",
+)
+
+rpart.plot(decision_tree,
+           main = "Initial Decision Tree")
+
+# Teams with high powered offenses (AdjOE >= 112) have an average seed of 6.3, while teams with lower offensive efficiency (AdjOE < 112) average the 12th seed. Since about 59% of teams fall into the higher offensive category, the tree next splits this group by AdjDE < 100. Teams meeting this threshold average the 5th seed, with a further branch at AdjDE < 93. Those with elite defense (AdjDE < 93) typically get the 2 seed (2.3).
+
+# Teams on high offensive side with an AdjDE >= 100 generally fall to around the 9-10 seed range (9.6). For teams with an AdjDE >= 93, the next split is based on whether their AdjOE is at least 118. Those in this threshold are projected around 3rd or 4th seed (3.6), while those below it tend to fall closer to the 7th seed.
+
+# On the right side of the tree, representing 41% of the teams with an AdjOE < 112, the next key split is AdjDE < 96. Teams with strong defensive efficency (AdjDE < 96) in this lower offense group average the 8th seed (8.3), while those with an AdjDE >= 96 fall much lower, typically around the 14th seed.
+
+# The order of importance within these predictors is not surprising, since Offensive and Defensive efficiency often show how strong a team is in their conference. Teams who mix in both high offense and elite defense will typically be seeded, depending on how other teams perform as well.
+```
+
+```{r}
+# Question 3 - Tuning the Decision Tree
+set.seed(20240320)
+
+# Finding best minbucket
+teams_seeding <- teams[!is.na(teams$seed), ]
+
+set.seed(20240320)
+train_index <- sample(nrow(teams_seeding), nrow(teams_seeding) * 0.60)
+train_data <- teams_seeding[train_index, ]
+test_data <- teams_seeding[-train_index, ]
+
+find_min_ters <- function(minbucket) {
+  minbucket <- floor(minbucket)
+  model <- rpart(
+    seed ~ AdjTempo + AdjOE + AdjDE,
+    data = train_data,
+    control = rpart.control(minbucket = minbucket)
+  )
+  preds <- predict(model, test_data)
+  sqrt(mean((test_data$seed - preds) ^2))
+}
+
+results <- sapply(1:16, find_min_ters)
+best_minbucket <- which.min(results)
+best_minbucket
+#Best minbucket is 2, which is used for the tuned tree
+
+# Tuned Tree
+tuned_decision_tree <- rpart(
+  seed ~ AdjTempo + AdjOE + AdjDE,
+  data = teams_seeding,
+  control = rpart.control(minbucket = best_minbucket)
+)
+
+rpart.plot(tuned_decision_tree,
+           main = "Tuned Decision Tree")
+
+# After tuning the new decision tree, there are many significant changes within the tree compared to the first tree. We see that the left side of the tree has increased the amount of branches, meaning we can be more specific with our classifications for seeding in the NCAA.
+
+# The left side of the tree added an AdjOE >= 119 branch which is under the AdjDE < 93 branch. From there, those who had an AdjOE >= 119  usually ended up in the 2 seed. If AdjDE < 93 and AdjOE < 119, then the branch would be separated again by AdjDE. The next split was AdjDE < 95, which resulted in the 5th seed (5.6). If the team did not have an AdjDE <95, the team finished in the 8th seed (7.9). This was then split by the tempo of the team, where if the AdjTempo was less than 68, the team finished in the 7th seed (6.8). If the team had an AdjTempo greater than 68, they end up in the 9th seed (9.2).
+
+# The right side of the tree was also significantly affected. The AdjDE branch was split up into further branches, as the AdjOE >= 108 branch was created. For teams with an AdjDE < 96, they end up in the 8th seed (8.3). After this, the split was with an AdjOE >= 108, to which teams who exceeded this threshold typically ended up in the 7th seed (6.8). Then, AdjTempo was separating this branch further. The branch is separated by an AdjTempo of < 66, to which teams who had less than < 66 AdjTempo ended in the 5th seed (5.5), and teams who exceeded the tempo of 66 ended in the 9th seed (9.5).
+
+# The far right of the tree is now split by an AdjDE < 101, which teams who are below the threshold end up in the 12th seed, and teams who are above the threshold are in the 15th seed.
+
+# The splits have specified the seeds as accurately as possible using 2 as the optimal minbucket.The tree has changed significantly, despite the initial upper branches remaining the same (AdjOE >= 112, AdjDE < 100, AdjDE < 96).
+
+```
+
+```{r}
+# Question 4 - Tree Comparison
+teams_seeding$predictedseed <- predict(tuned_decision_tree, newdata=teams_seeding) # Using only seeded team data from previous question (tuned decision tree)
+
+# Calculating the difference of actual seed and predicted seed
+teams_seeding$difference <- teams_seeding$seed - teams_seeding$predictedseed
+
+# Under-seeded Teams
+under_seed <- teams_seeding[order(teams_seeding$difference), ]
+
+# The five most under-seeded teams were Indiana, Baylor, Kansas St, Louisiana, and Penn St. These teams were all expected to finish lower based on predicted seed, but ended up finishing higher than their projection.
+
+# Over-seeded Teams
+over_seed <- teams_seeding[order(-teams_seeding$difference), ]
+
+# The five most over-seeded teams were Colgate, Saint Mary's, Arkansas, Iowa, and Auburn. These teams were all expected to finish higher based on predicted seed, but ended up finishing lower than the projection.
+
+# Viewing Top 5 of Both Under and Over seeded teams
+head(under_seed[, c("TeamName", "seed", "predictedseed", "difference")], 5)
+head(over_seed[, c("TeamName", "seed", "predictedseed", "difference")], 5)
+
+# Snubbed Teams
+snubbed_teams <- teams[is.na(teams$seed) & predict(tuned_decision_tree, newdata = teams) <=12, ]
+snubbed_teams[, c("TeamName", "AdjOE", "AdjDE", "AdjTempo")]
+
+# Teams that got in, but likely shouldn't have
+lucky_teams <- teams_seeding[teams_seeding$predictedseed >=10, ]
+lucky_teams[, c("TeamName", "seed", "predictedseed")]
+
+head(snubbed_teams,5)
+# The snubbed teams, or the teams who should have been seeded were: Colorado, Florida, Liberty, Michigan, and New Mexico. Based on their team statistics, they should have made the bracket based on the decision tree.
+
+head(lucky_teams,5)
+# The lucky teams, or the teams who shouldn't have got in, but did were: Arizona St., Charleston, Colgate, Drake, and Fairleigh Dickinson.
+```
+

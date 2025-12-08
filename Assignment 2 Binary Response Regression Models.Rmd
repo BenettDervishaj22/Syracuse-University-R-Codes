@@ -1,0 +1,215 @@
+---
+title: "Assignment 2 - Binary Response Regression Models"
+author: "Benett Dervishaj"
+date: "2025-10-31"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(GGally)
+library(ggfortify)
+library(lmtest)
+library(MASS)
+library(tidyverse)
+library(regclass)
+library(caret)
+library(performance)
+library(tinytex)
+library(DescTools)
+```
+
+```{r}
+# Question 1 - Investigating the Data
+keys <- read_csv("keys_to_the_game.csv",
+                 show_col_types = FALSE)
+keys
+```
+
+```{r}
+# Question 1 Cont - Summary Statistics of Variables (Separated for Summary Purposes)
+team_stats <- keys %>%
+  select(fga, fg_pct, fga3, fg3_pct, fta, ft_pct, orb, drb, ast, stl, blk, tov)
+
+summary(team_stats)
+
+# The only variables with minimums beginning at 0 are: Free throw percentage, Steals, and Blocks. Perhaps the data contains players who did not record a free throw, or had only 1 free throw attempt and missed. Steals and blocks are normal, considering that there are some players who aren't known for defense.
+
+# All Means and Medians of each variable are relatively close to each other. The largest gap between mean and median for this data is turnovers at 0.80, with the mean being higher than the median. Overall, the data is symmetric, which implies the skew is not heavily to one side. 
+
+opponents_stats <- keys %>%
+  select(opp_fga, opp_fg_pct, opp_fga3, opp_fg3_pct, opp_fta, opp_ft_pct, opp_orb, opp_drb, opp_ast, opp_stl, opp_blk, opp_tov)
+
+summary(opponents_stats)
+
+# The only variables beginning at a minimum value of 0 are: 3 point field goal percentage, free throw percentage, steals, and blocks. This is more than the previous data set, which could indicate that this particular group of opponents often struggled to score.
+
+# All means and variables are relatively close to each other as well. The largest gap between mean and median is Free Throw Percentage at 1.30, with the median being greater than the mean. Overall, the data appears symmetric, which implies the skew is not heavily to one side.
+
+# Converting Win to Numeric and assigning 1 = True, 0 = False.
+keys <- keys %>%
+  mutate(win = as.numeric(win))
+```
+
+```{r}
+# Question 2 - Logistic Regression
+logistic_mod <- glm(win ~ fga + fg_pct + fga3 + fg3_pct + fta + ft_pct + orb + drb + ast + stl + blk + tov + opp_fga + opp_fg_pct + opp_fga3 + opp_fg3_pct + opp_fta + opp_ft_pct + opp_orb + opp_drb + opp_ast + opp_stl + opp_blk + opp_tov, data = keys, family = "binomial")
+
+summary(logistic_mod); 1 - pchisq(995.03 - 193.35, 738 - 714)
+
+# Autocorrelation Check (Durbin-Watson Test)
+dwtest(logistic_mod, alternative ="two.sided")
+# No evidence of autocorrelation, p-value of 0.9146. Therefore, there is no evidence of autocorrelation or dependence within our observations, given the high p-value.
+
+
+# Graphing the Fitted Values based on Predictors (Team)
+keys %>%
+  select(fga, fg_pct, fga3, fg3_pct, fta, ft_pct, orb, drb, ast, stl, blk, tov)  %>%
+  mutate(log_odds = log(logistic_mod$fitted.values / (1 - logistic_mod$fitted.values))) %>%
+  pivot_longer(-log_odds) %>%
+  ggplot(aes(value, log_odds)) +
+  geom_point() +
+  facet_wrap(~ name, scales = "free_x")
+
+# Graphing the Fitted Values based on Predictors (Opponent)
+keys %>% 
+  select(opp_fga,opp_fg_pct, opp_fga3, opp_fg3_pct, opp_fta, opp_ft_pct, opp_orb, opp_drb, opp_ast, opp_stl, opp_blk, opp_tov)  %>%
+  mutate(log_odds = log(logistic_mod$fitted.values / (1 - logistic_mod$fitted.values))) %>%
+  pivot_longer(-log_odds) %>%
+  ggplot(aes(value, log_odds)) +
+  geom_point() +
+  facet_wrap(~ name, scales = "free_x")
+
+# Both graphs show that there is clear linearity between each of these predictors and the log odds of the response.
+
+# Sample Test
+keys %>%
+  count(win) #home wins = 443 out of 739 observations
+
+296/739 -> home_loss
+443/739 -> home_win
+
+mean(home_loss)
+mean(home_win)
+
+# Smaller mean is when the home team loses, therefore we must use this observation as the subtracted mean for our sample.
+
+nrow(keys) > 10 * 24 / min(mean(keys$win), 1 - mean(keys$win)) # 24 predictors
+
+# True = we have a large enough sample size. Overall we can assume the results are valid because we have significant predictors, which for logit models implies that the model as a whole is significant. This differs from a linear regression, where you cannot infer that the model will be significant if any predictor is significant.
+
+# Our test for autocorrelation utilizing the Durbin-Watson test shows that there is no evidence of auocorrelation.
+
+# In addition, our fitted value graphs for each predictor appear to be linear, showing that there is linearity between the predictors and our log responses.
+```
+
+```{r}
+# Question 3 - Multicollinearity
+VIF(logistic_mod)
+
+# Very high multicollinearity with numerous predictors. Those key values are:
+# Field Goals Attempted (fga) --- 27.90
+# Field Goal Percentage (fg_pct) --- 10.17
+# Free Throws Attempted (fta) --- 8.38
+# Offensive Rebounds (orb) --- 13.86
+# Defensive Rebounds (drb) --- 11.72
+# Turnovers (tov) --- 7.17
+# Opponent Field Goal Attempted (opp_fga) --- 37.90
+# Opponent Field Goal Percentage (opp_fg_pct) --- 8.61
+# Opponent Free Throws Attempted (opp_fta) --- 7.16
+# Opponent Offensive Rebounds (opp_orb) --- 12.94
+# Opponent Defensive Rebounds (opp_drb) --- 11.53
+# Opponent Turnovers (opp_tov) --- 7.29
+
+
+# Corrected Model:
+logistic_mod2 <- glm(win ~ fga3 + fg3_pct + fta + ft_pct + ast + stl + blk + tov + opp_fga3 + opp_fg3_pct + opp_fta + opp_ft_pct + opp_ast + opp_stl + opp_blk + opp_tov, data = keys, family = "binomial")
+summary(logistic_mod2)
+
+
+VIF(logistic_mod2)
+
+# For the corrected model, the following predictors were removed: Field Goals Attempted, Field Goal Percentage, Offensive Rebounds, Defensive Rebounds, Opponent Field Goals Attempted, Opponent Field Goal Percentage, Opponent Offensive Rebounds, Opponent Defensive Rebounds. These values all had significant variance inflation factors, contributing to the significant multicollinearity in the first model. Once removed, no VIF exceeds 2.45 in this new model. The model also maintains its significance as noted by the p-values of the predictor variables.
+```
+
+```{r}
+# Question 4 - Logistic Model Re-Run
+logistic_mod3 <- glm(win ~ fg_pct + fg3_pct + ft_pct + fta + orb + tov + opp_fg_pct + opp_fg3_pct + opp_ft_pct + opp_fta + opp_orb + opp_tov, data = keys, family = "binomial")
+
+summary(logistic_mod3); 1 - pchisq(995.03 - 244.54, 738 - 726)
+
+dwtest(logistic_mod3, alternative ="two.sided")
+# No autocorrelation, p-value of 0.8485.
+
+# Graphing the Fitted Values based on Predictors (Team)
+keys %>%
+  select(fg_pct, fg3_pct, fta, ft_pct, orb,tov)  %>%
+  mutate(log_odds = log(logistic_mod3$fitted.values / (1 - logistic_mod3$fitted.values))) %>%
+  pivot_longer(-log_odds) %>%
+  ggplot(aes(value, log_odds)) +
+  geom_point() +
+  facet_wrap(~ name, scales = "free_x")
+
+# Graphing the Fitted Values based on Predictors (Opponent)
+keys %>% 
+  select(opp_fg_pct, opp_fg3_pct, opp_fta, opp_ft_pct, opp_orb, opp_tov)  %>%
+  mutate(log_odds = log(logistic_mod3$fitted.values / (1 - logistic_mod3$fitted.values))) %>%
+  pivot_longer(-log_odds) %>%
+  ggplot(aes(value, log_odds)) +
+  geom_point() +
+  facet_wrap(~ name, scales = "free_x")
+
+# Both graphs follow a linear trend for each predictor, indicating linearity between the predictors and the log odds of the response.
+
+VIF(logistic_mod3)
+# No Multicollinearity
+
+# Sample Test
+nrow(keys) > 10 * 12 / min(mean(keys$win), 1 - mean(keys$win)) # 12 predictors
+
+# True. We have a large enough sample size with 12 predictors.
+
+# No assumptions were violated. We have followed:
+
+# 1. Binary Response = 1 or 0 (CORRECT) (Home Win = 1, Home Loss = 0)
+# 2. Independence: Observations must be independent of one another (CORRECT - DW TEST)
+# 3. No Multicollinearity: No VIF exceeds 3 (CORRECT)
+# 4. Linearity: Linear relationship between predictors and log odds of the response (CORRECT)
+# 5. Large Sample Size: At least 10 observations per predictor, which is scaled by how often a "success" occurs (1 or 0, 1 being success in this model) (CORRECT).
+```
+
+```{r}
+# Question 5 - Probit Regression
+probit_mod <- glm(win ~ fg_pct + fg3_pct + ft_pct + fta + orb + tov + opp_fg_pct + opp_fg3_pct + opp_ft_pct + opp_fta + opp_orb + opp_tov, data = keys)
+summary(probit_mod)
+
+# Creating Training Test Data
+set.seed(123)
+n <- nrow(keys)
+split <- 0.60
+train <- sample(n, size = n * split)
+
+keys_train <- keys[train, ]
+keys_test <- keys[-train, ]
+
+logit_method <- glm(win ~ fg_pct + fg3_pct + ft_pct + fta + orb + tov + opp_fg_pct + opp_fg3_pct + opp_ft_pct + opp_fta + opp_orb + opp_tov,data = keys_train, family = binomial())
+
+probit_method <- glm(win ~ fg_pct + fg3_pct + ft_pct + fta + orb + tov + opp_fg_pct + opp_fg3_pct + opp_ft_pct + opp_fta + opp_orb + opp_tov, data = keys_train, family = binomial(link = "probit"))
+
+keys_test %>%
+  mutate(log_pred = predict(logit_method,.,
+                            type = "response"),
+         pro_pred = predict(probit_method,.,
+                            type = "response")) %>%
+  summarize(log_brier = BrierScore(win, log_pred),
+            pro_brier = BrierScore(win, pro_pred))
+
+# The Logit Brier Score is lower than the Probit Brier Score, implying that the predictions are more accurate than the probit model. While we typically have no reason to choose one over the other, the logit model's lower score means we should select this over the probit method.
+```
+

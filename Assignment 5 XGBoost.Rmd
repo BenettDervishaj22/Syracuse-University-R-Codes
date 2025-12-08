@@ -1,0 +1,236 @@
+---
+title: "Week 6 Assignment"
+author: "Benett Dervishaj"
+date: "2025-11-30"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(xgboost)
+library(ModelMetrics)
+set.seed(04172024)
+
+dat <- read_csv("all_star_selections.csv", show_col_types = FALSE)
+train_ind <- sample(1:nrow(dat), .65 * nrow(dat))
+dat_train <- dat[train_ind, ]
+dat_test <- dat[-train_ind, ]
+```
+
+```{r}
+# Question 1 - XGBoost Model
+new_dat <- dat %>%
+  select(all_star, AB, R, H, HR, RBI, SB, BB, SO)
+
+
+dat_train <- xgb.DMatrix(as.matrix(select(new_dat[train_ind, ],
+                                          -all_star)),
+                         label = new_dat$all_star[train_ind])
+
+dat_test <- xgb.DMatrix(as.matrix(select(new_dat[-train_ind, ],
+                                         -all_star)),
+                        label = new_dat$all_star[-train_ind])
+
+watchlist <- list(train = dat_train, eval = dat_test)
+param <- list(max_depth = 2, eta = 1,
+              objective = "binary:logistic", eval_metric = "error")
+bst <- xgb.train(param, dat_train, nrounds = 2, watchlist)
+
+
+# Find Rounds Function (1ST)
+find_rounds <- function(rounds) {
+  rounds <- ceiling(rounds)
+  xgb.train(
+    params = list(
+      eta = 0.2,
+      objective = "binary:logistic",
+      eval_metric = "error"
+    ),
+    data = dat_train,
+    nrounds = rounds,
+    watchlist = list(train = dat_train,
+                     test = dat_test),
+    verbose = 0
+  )$evaluation_log %>%
+    select(test_error) %>%
+    slice_tail() %>%
+    flatten_dbl()
+}
+
+
+# TREE RATIO
+set.seed(123)
+(tree_ratio <- optimize(find_rounds, c(50, 2000), tol = 1))
+```
+
+
+```{r}
+# Find Depth Function
+find_depth <- function(depth) {
+  depth <- ceiling(depth)
+  xgb.train(
+    params = list(
+      eta = 0.2,
+      objective = "binary:logistic",
+      eval_metric = "error",
+      max_depth = depth
+    ),
+    data = dat_train,
+    nrounds = ceiling(tree_ratio$minimum),
+    watchlist = list(train = dat_train,
+                     test = dat_test),
+    verbose = 0
+  )$evaluation_log %>%
+    select(test_error) %>%
+    slice_tail() %>%
+    flatten_dbl()
+}
+
+# Depth Val
+set.seed(123)
+(depth_val <- optimize(find_depth, c(1, 200), tol = 1))
+
+# Find Weight Function
+find_weight <- function(weight) {
+  depth <- ceiling(weight)
+  xgb.train(
+    params = list(
+      eta = 0.2,
+      objective = "binary:logistic",
+      eval_metric = "error",
+      min_child_weight = weight,
+      max_depth = ceiling(depth_val$minimum)
+    ),
+    data = dat_train,
+    nrounds = ceiling(tree_ratio$minimum),
+    watchlist = list(train = dat_train,
+                     test = dat_test),
+    verbose = 0
+  )$evaluation_log %>%
+    select(test_error) %>%
+    slice_tail() %>%
+    flatten_dbl()
+}
+
+# Finding Child Weight
+set.seed(123)
+(child_weight <- optimize(find_weight, c(1, 200), tol = 1))
+```
+
+
+```{r}
+# Question 3 - Adjusting Learning Rate and Tree Parameters
+tree_eta_ratio <- .2 * ceiling(tree_ratio$minimum)
+find_tree <- function(trees) {
+  trees <- ceiling(trees)
+  xgb.train(
+    params = list(
+      eta = tree_eta_ratio / trees,
+      objective = "binary:logistic",
+      eval_metric = "error",
+      min_child_weight = ceiling(child_weight$minimum),
+      max_depth = ceiling(depth_val$minimum)
+    ),
+    data = dat_train,
+    nrounds = trees,
+    watchlist = list(train = dat_train,
+                     test = dat_test),
+    verbose = 0
+  )$evaluation_log %>%
+    select(test_error) %>%
+    slice_tail()  %>%
+    flatten_dbl()
+}
+
+perform_by_tree <- tibble(
+  ntree = 2:20 * 500,
+  error = map_dbl(ntree, find_tree))
+
+perform_by_tree
+
+ggplot(perform_by_tree, aes(ntree, error)) +
+  geom_line() +
+  geom_vline(xintercept = 8500, color = "red")
+
+trees <- 8500
+```
+
+```{r}
+# Question 4 - Full XG Boost Model
+
+dfull <- xgb.DMatrix(as.matrix(select(new_dat,
+                                      -all_star)),
+                     label = new_dat$all_star)
+
+full_mod <- xgb.train(
+  params = list(
+    eta = tree_eta_ratio / trees,
+    objective = "binary:logistic",
+    eval_metric = "error",
+    min_child_weight = ceiling(child_weight$minimum),
+    max_depth = ceiling(depth_val$minimum)
+  ),
+  data = dfull,
+  nrounds = trees,
+  verbose = 0
+)
+
+xgb.ggplot.importance(
+  xgb.importance(model = full_mod)
+)
+
+# The most important predictors in determining which players play in the All-Star Game are Hits (H), Runs Batted In (RBI), and At Bats (AB). The others are important but are less important than the 3 previously mentioned.
+```
+```{r}
+# Question 5 - Logistic Regression
+library(lmtest)
+library(DescTools)
+library(dplyr)
+
+set.seed(123)
+train_ind <- sample(1:nrow(dat), .65 * nrow(dat))
+dat_train <- dat[train_ind, ]
+dat_test <- dat[-train_ind, ]
+
+# Logistic Regresison
+logit_mod <- glm(all_star ~ H + RBI + AB + SO + BB + HR + R + SB, data = dat_train, family = binomial())
+summary(logit_mod)
+
+# Accuracy of Logistic Model
+probabilities <- predict(logit_mod, newdata = dat_test, type = "response")
+predicted_classses <- ifelse(probabilities > 0.5, 1 ,0)
+actual_classes <- dat_test$all_star
+
+# Logit Confusion Matrix
+confusion_matrix <- table(Actual = actual_classes, Predicted = predicted_classses)
+print(confusion_matrix)
+
+# Logit Accuracy
+logitaccuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(logitaccuracy)
+#94.79%
+
+# Accuracy of XGBoost Model
+x_test <- dat_test[, full_mod$feature_names] # split into data that excludes (all_star)
+x_test_matrix <- as.matrix(x_test) # matrix of predictors
+
+xgb_preds_prob <- predict(full_mod, newdata = x_test_matrix)
+xgb_preds_class <- ifelse(xgb_preds_prob > 0.5, 1, 0)
+
+# XGBoost Accuracy
+xgbaccuracy <- mean(xgb_preds_class == dat_test$all_star)
+print(xgbaccuracy)
+
+# Logit and XGBoost Tibble
+tibble(logitaccuracy, xgbaccuracy)
+
+# The model that made the most accurate predictions was the XGBoost accuracy model, which is at 95%, while the logit model was at 94%.
+```
+
