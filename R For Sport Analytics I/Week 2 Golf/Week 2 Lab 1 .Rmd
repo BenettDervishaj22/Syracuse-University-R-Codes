@@ -1,0 +1,31 @@
+---
+title: "Week 2 Lab 1"
+output: html_document
+date: "2024-11-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+```
+```{r}
+MetsOffense <- read_csv("data/Mets.csv")
+MetsOffense %>% write_csv("data/MetsOffense.csv")
+```
+```{r}
+Mets %>% slice(1:10) %>% select(Name, G, PA, RBI, BA)
+```
+```{r}
+MetsOffense %>%
+  mutate(RC = (H - HR / AB - SO + HR + SF)) -> MetsOffense
+MetsOffense %>%
+  arrange(desc(RC))
+MetsOffense %>% slice(1:10) %>% select(Name, G, PA , RBI, BA, RC) %>% arrange(desc(RC))
+```
+```{r}
+MetsOffense %>% write_csv("MetsOffenseRC.csv")
+```
+
+

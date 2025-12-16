@@ -1,0 +1,87 @@
+---
+title: "Shiny Apps Lab 1"
+output: html_document
+date: "2024-12-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(shiny)
+library(tidyverse)
+August2019 <- read_csv("statcastAugust2019.csv")
+my_pitches <- August2019
+```
+```{r}
+ui <- fluidPage(
+titlePanel("Nathan Eovaldi's Three Pitches and Pitch Location"),
+
+sidebarLayout(
+  sidebarPanel = (
+    
+    sliderInput(inputId = "bins",
+                label = "Number of bins:",
+                min = 1,
+                max = 300,
+                value = 20)
+  ),
+       selectInput(inputId = "pitch_type",
+              label = "Select Pitch Type",
+              choices = c("FF", "CU", "SL"),
+              selected = "SL")
+  
+),
+
+  mainPanel(
+    
+    plotOutput(outputId = "NathanEovaldiPlot"),
+   
+  )
+ )
+
+server <- function(input, output) {
+
+  
+  output$NathanEovaldiPlot <- renderPlot({
+    my_pitches -> NathanEovaldi
+    taken <- my_pitches %>% filter(pitch_type == "FF" | pitch_type == "SL" | pitch_type == "CU")
+  
+   (input$pitch_type !="SL")
+    taken <- taken %>% filter(pitch_type == input$pitch_type)
+
+    
+    #Model
+    
+    taken$zFromPlate <- abs(taken$plate_z - 3.00)
+    taken$xFromPlate <- abs(taken$plate_x)
+    taken$distanceFromPlate <- sqrt(taken$xFromPlate^2 + taken$zFromPlate^2)
+    
+    ggplot(taken,aes(x=distanceFromPlate, color=pitch_type)) + geom_histogram(bins = input$bins) +
+      ggtitle("Histogram of Signature Nathan Eovaldi Pitches") + xlab("Distance From Strike Zone (In Feet)") + ylab("n")
+   
+    
+    })
+}
+```
+```{r}
+shinyApp(ui = ui, server = server)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

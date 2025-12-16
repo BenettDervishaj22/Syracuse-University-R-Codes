@@ -1,0 +1,25 @@
+---
+title: "Module 1 Lab 2"
+output: html_document
+date: "2024-10-24"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## New York Mets Top 3 Players by WAR 2024 Season
+
+```{r}
+FranciscoLindor <- 7.0
+MarkVientos <- 3.2
+PeteAlonso <- 2.9
+```
+```{r}
+if ((FranciscoLindor >= MarkVientos) + (FranciscoLindor >= PeteAlonso)) {
+  print ("The Most Valuable Mets Player of the 2024 season was Francisco Lindor")
+} else if ((MarkVientos >= FranciscoLindor) + (MarkVientos >= PeteAlonso)){
+  print ("The Most Valuable Mets Player of the 2024 season was Mark Vientos")
+} else if ((PeteAlonso >= FranciscoLindor) + (PeteAlonso >= MarkVientos)) {
+  print ("The Most Valuable Mets Player of the 2024 season was Pete Alonso")
+}
+```
+

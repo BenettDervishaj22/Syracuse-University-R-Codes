@@ -1,0 +1,54 @@
+---
+title: "Assignment 2 Re-Worked"
+output: html_document
+date: "2024-11-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+```
+```{r}
+## Question 1
+TourData <- read_csv("tour_data.csv")
+GolfEarnings <- read_csv("golf_earnings.csv")
+```
+```{r}
+## Question 2
+TourData %>%
+  group_by(EVENT_NAME, NAME, YEAR) %>%
+  filter(ROUND_NUM >= 4) %>%
+  select(EVENT_NAME, YEAR, NAME, ROUND_NUM, SG_TOTAL) -> TournamentRoundData
+```
+```{r}
+## Question 3
+TourData %>%
+  group_by(NAME, YEAR) %>%
+  summarize(AverageSG = mean(SG_TOTAL)) -> AverageSG
+```
+```{r}
+## Question 4
+AverageSG %>%
+  inner_join(GolfEarnings, by = c("NAME", "YEAR")) -> AverageSGEarnings
+AverageSGEarnings %>%
+  group_by(NAME, YEAR)
+```
+```{r}
+## Question 5
+AverageSGEarnings %>%
+  select(NAME,YEAR, EARNINGS) %>% filter(YEAR >= 2023) %>% 
+  arrange(desc(EARNINGS))
+```
+```{r}
+## Question 5 Table 2
+AverageSGEarnings %>%
+  select(NAME, YEAR, AverageSG) %>% filter(YEAR >= 2023) %>%
+arrange(desc(AverageSG))
+```
+```{r}
+## Question 6
+# What this table tells me about SG_Total is that it does not necessarily correlate heavily with high earnings in the 2023 season. There were some individuals who had high Average Strokes gained, but also did not make as much as others. For example, Rory Mcllroy had a higher Average SG than Jon Rahm, but Rahm still had higher earnings than Mcllroy. This could just mean that Mcllroy did not play as many tournaments as Rahm, but nevertheless it is still worth noting that SG does not equate to higher earnings for every golfer.
+```
+

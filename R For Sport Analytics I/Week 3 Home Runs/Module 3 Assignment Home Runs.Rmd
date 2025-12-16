@@ -1,0 +1,58 @@
+---
+title: "Week 3 Assignment: Working with Retrosheet's Play-by-Play Data"
+output: html_document
+date: "2024-11-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+library(Lahman)
+library(ggplot2)
+library(plotly)
+```
+```{r}
+Fields <- read_csv("data/fields.csv")
+data2001 <- read_csv("data/all2001.csv",
+                     col_names = pull(Fields, Header))
+data2001
+```
+```{r}
+sosa_id <- People %>%
+  filter(nameFirst == "Sammy", nameLast == "Sosa") %>%
+  pull(retroID)
+bonds_id <- People %>%
+  filter(nameFirst == "Barry", nameLast == "Bonds") %>%
+  pull(retroID)
+gonzalez_id <- People %>%
+  filter(nameGiven == "Luis Emilio") %>%
+  pull(retroID)
+```
+```{r}
+HomeRunRace <- data2001 %>%
+  filter(BAT_ID %in% c(sosa_id, bonds_id, gonzalez_id))
+```
+```{r}
+HomeRunRace %>%
+  mutate(Date = ymd(str_sub(GAME_ID, 4, 11))) %>% arrange(Date) %>%
+  group_by(BAT_ID) %>% mutate(HR = ifelse(EVENT_CD == 23, 1, 0), cum_HR = cumsum(HR)) %>%
+  ungroup() %>% select(BAT_ID, Date, cum_HR, HR) %>% inner_join(People, by = c("BAT_ID" = "retroID")) -> HR_YTD
+```
+```{r}
+ggplot(HR_YTD, aes(x = Date, y = cum_HR, color = BAT_ID)) +
+  geom_line() +
+  geom_hline(yintercept = 70, color = "Maroon") +
+  xlab("Date") +
+  ylab("HR") +
+  ggtitle("The 2001 Home Run Race") -> The2001HomeRunRace
+ggsave("The 2001 Home Run Race.png")
+ggsave("The 2001 Home Run Race.svg")
+ggsave("The 2001 Home Run Race.pdf") 
+```
+```{r}
+The2001HomeRunRace
+```
+
+

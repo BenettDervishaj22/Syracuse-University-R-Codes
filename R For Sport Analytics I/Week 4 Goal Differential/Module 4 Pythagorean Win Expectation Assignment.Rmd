@@ -1,0 +1,76 @@
+---
+title: "Module 4 Assignment Pythagorean Win Expectation"
+output: html_document
+date: "2024-11-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+```{r}
+NHL <- read_csv("2022-2023 NHL Season Rankings.csv")
+```
+
+```{r}
+# Question A
+NHL <- NHL %>%
+  select(Team_ID, YEAR_ID, W, L , OL, GF, GA) %>%
+  mutate(GP = W + L + OL) %>%
+  mutate(GD = GF - GA, Wpct = W / GP)
+```
+```{r}
+NHL <- NHL %>%
+  mutate(WPCT_PYT = GF ^ 2 / (GF ^ 2 + GA ^ 2))
+```
+```{r}
+NHL <- NHL %>%
+  mutate(residuals_pyt = Wpct - WPCT_PYT)
+NHL %>%
+  summarize(RMSE = sqrt(mean(residuals_pyt ^2)))
+```
+```{r}
+NHL <- NHL %>%
+  mutate(logWratio = log(W /(L+OL)),
+         logGratio = log(GF / GA))
+pytfit <- lm(logWratio ~ 0 + logGratio, data = NHL)
+pytfit
+exponent <- pytfit$coefficients["logGratio"]
+```
+```{r}
+NHL <- NHL %>%
+  mutate(WPCT_PYT = GF ^ exponent / (GF ^ exponent + GA ^ exponent))
+```
+```{r}
+NHL <- NHL %>%
+  mutate(residuals_pyt = Wpct - WPCT_PYT)
+NHL %>%
+  summarize(rmse = sqrt(mean(residuals_pyt^2)))
+```
+```{r}
+highlight_teams <- NHL %>%
+  arrange(desc((residuals_pyt))) %>%
+  head(4)
+```
+
+```{r}
+# Question B
+# Labeling the 4 Largest Residuals
+library(ggrepel)
+ggplot(NHL, aes(x = GD, y = residuals_pyt)) +
+  geom_point(alpha = 0.3) +
+  geom_hline(yintercept = 0, linetype = 3) +
+  xlab("Goal Differential") +
+  ylab("Residual") +
+  geom_point(data = highlight_teams, color = "red") +
+  geom_text_repel(data = highlight_teams, color = "blue",
+                  aes(label = paste(Team_ID, YEAR_ID)))
+  ggtitle("Goal Differential and Residual from Last Two NHL Seasons")
+  ggsave("Goal Differential and Residual from Last Two NHL Seasons.png")
+  ggsave("Goal Differential and Residual from Last Two NHL Seasons.svg")
+  ggsave("Goal Differential and Residual from Last Two NHL Seasons.pdf")
+```
+

@@ -1,0 +1,95 @@
+---
+title: "MVP Project"
+output: html_document
+date: "2024-12-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(shiny)
+library(tidyverse)
+library(Lahman)
+library(baseballr)
+library(readr)
+library(ggrepel)
+library(plotly)
+library(ggplot2)
+```
+
+```{r}
+MVPStatcastList <- read_csv("MVPStatcastEra.csv")
+FranchiseRosters <- read_csv("FranchiseRosters.csv")
+```
+
+```{r}
+view(MVPStatcastList)
+```
+
+## We will be taking a look at the Batting Average on Balls in Play for MVP Winners, and the rosters they had during their MVP Seasons. 
+
+## BABIP is important because it can distinguish the "luck" a player had throughout the season, typically the BABIP for players is higher than their normal average.
+
+```{r}
+# Franchise Rosters EXCLUDING MVP Winner of that Season (Mutating for Batting Average on Balls in Play)
+FranchiseRosters %>% group_by(Year,Team, Player, BA, AB, H, SO, SF, WAR,HR, `Player-additional`) %>%
+  select(Year, Team, Player, BA, AB, H, SO, SF, WAR, HR, `Player-additional`) %>%
+  summarize(BABIP = (H-HR)/(AB-SO-HR+SF)) -> FranchiseBABIP
+```
+
+```{r}
+## Scatterplot of BABIP of all Batters on the Franchises who had an MVP Winner (Statcast Era)
+FranchiseBABIP %>% plot_ly(x = ~BA, y = ~BABIP, color = ~Team, text = ~Year) %>% add_markers()
+```
+
+
+```{r}
+FranchiseBABIP %>% filter(Team != "Los Angeles Angels") %>% filter(Team != "Los Angeles Dodgers") %>% filter(Team != "New York Yankees")
+ggplot(SoloMVP, aes(x = Team, y = BABIP, fill = Team)) +
+  geom_boxplot() + coord_flip() + scale_fill_ordinal() +
+```
+
+```{r}
+## Histogram of Amount of Players who had a specific OPS based on each Franchise (Statcast Era MVP's Only)
+ggplot(FranchiseBABIP, aes(x = BABIP, fill = Team)) +
+  geom_histogram(breaks = seq(0.2, 1.0, by = 0.1)) +
+  scale_fill_ordinal()
+```
+```{r}
+ggplot(FranchiseRosters, aes(x = Team, y = WAR, fill = Team)) +
+  geom_boxplot() + coord_flip() + scale_fill_ordinal()
+```
+```{r}
+## On-Base Percentage and On-Base + Slugging Percentage by each Franchise Roster in the Statcast Era
+library(plotly)
+FranchiseRosters %>% plot_ly(x = ~OBP, y = ~OPS, color = ~Team, text = ~Year) %>% add_markers()
+```
+
+```{r}
+## WAR and Games Played for the MVP Winners in the Statcast Era
+library(plotly)
+MVPStatcastList %>% plot_ly(x = ~WAR, y = ~G, color = ~Team, text = ~`Player-additional`) %>% add_markers()
+```
+
+```{r}
+# Mutating for BABIP for the MVP Winners in the Statcast Era
+MVPStatcastList %>% group_by(Year,Team, Player, BA, AB, H, SO, SF, WAR,HR, `Player-additional`) %>%
+  select(Year, Team, Player, BA, AB, H, SO, SF, WAR, HR, `Player-additional`) %>%
+  summarize(BABIP = (H-HR)/(AB-SO-HR+SF)) -> MVPBABIP
+View(MVPBABIP)
+```
+```{r}
+## Scatterplot of MVP Winners Batting Average and BABIP in their MVP Season
+library(plotly)
+MVPBABIP %>% plot_ly(x = ~BABIP, y = ~BA, color = ~`Player-additional`, text = ~Year) %>% add_markers(text = ~`Player-additional`)
+```
+
+```{r}
+library(plotly)
+MVPBABIP %>% plot_ly(x = ~BABIP) %>% add_boxplot() -> BABIPBoxPlot
+BABIPBoxPlot
+```
+
+

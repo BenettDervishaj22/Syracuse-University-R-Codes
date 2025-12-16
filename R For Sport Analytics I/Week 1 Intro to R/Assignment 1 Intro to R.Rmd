@@ -1,0 +1,86 @@
+---
+title: 'Assignment 1: Intro to R'
+output:
+  html_document: default
+  pdf_document: default
+date: "2024-10-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+## Q1
+Player <- c("RickeyHenderson", "LouBrock","TyCobb", "EddieCollins", "MaxCarey", "JoeMorgan", "LuisAparicio", "PaulMolitor", "RobertoAlomar")
+SB <- c(1406,938,897,741,738,689,506,504,474)
+CS <- c(335,307,212,195,109,162,136,131,114)
+G <- c(3081,2616,3034,2826,2476,2649,2599,2683,2379)
+```
+```{r}
+SB.Attempt <- SB + CS
+Success.Rate = SB / SB.Attempt
+SB.Game <- SB / G
+
+plot(SB.Game,Success.Rate)
+```
+# Highest Success Rate: Max Carey (0.871)  
+# Lowest Success Rate: Lou Brock (0.753)
+# Greatest Number of Stolen Bases per Game: Rickey Henderson (0.456)
+
+## Q2
+```{r}
+outcomes <- c("Single","Out","Out","Single","Out","Double","Out","Walk","Out","Single")
+table(outcomes)
+f.outcomes = factor(outcomes,levels = c("Out", "Walk", "Single", "Double"))
+table(f.outcomes)
+```
+```{r}
+## "The output in the 2nd table differs from the output in the first table because the 2nd table has sorted out the least successful outcome to the most successful outcome, which is labeled in this order: Out, Walk, Single, Double. In the first table, it is not sorted by any specific means, as it simply just lists out the amount of times a specific outcome has occurred".
+outcomes == "Walk"
+## "In the first statement, the result of "Walk" is being scanned in order to see which specific plate appearances have resulted in a walk. When the code is run, it states "TRUE" or "FALSE" as the response. This means that for each listed outcome (in the order I listed them), the code will determine which is "True" or "False". It detected the 8th outcome as "TRUE" meaning that plate appearance resulted in a walk".
+sum(outcomes == "Walk")
+#"In the second statement, the result of "Walk" is being scanned in order to see how many outcomes resulted in a walk. In this example, there was only one walk out of 10 plate appearances. Therefore, once we run the code, it displays a "1" as the response".
+```
+## Q3
+```{r}
+Name <- c("Alexander", "Clemens", "Galvin","Johnson","Maddux","Mathewson","Nichols","Spahn","Young")
+W <- c(373,354,364,417,355,373,361,363,511)
+L <- c(208,184,310,279,227,188,208,245,316)
+```
+```{r}
+Win.PCT = (100 * W / (W + L))
+```
+```{r}
+Wins.350 <- data.frame(Name, W, L, Win.Pct)
+```
+```{r}
+dplyr::arrange(Wins.350, desc(Win.PCT))
+```
+# "The pitcher who had the highest winning percentage was Christy Mathewson, with a winning percentage of 66.48841. The pitcher who had the lowest winning percentage was Pud Galvin, with a winning percentage of 54.00593".
+
+## Q4
+```{r}
+SO <- c(2198,4672,1806,3509,3371,2502,1868,2583,2803)
+BB <- c(951,1580,745,1363,999,844,1268,1434,1217)
+Name <- c("Alexander","Clemens","Galvin","Johnson","Maddux","Mathewson","Nichols","Spahn","Young")
+```
+```{r}
+SO.BB.Ratio <- (SO / BB)
+```
+```{r}
+SO.BB <- data.frame(Name,SO, BB, SO.BB.Ratio)
+```
+```{r}
+(SO.BB.Ratio > 2.8)
+```
+```{r}
+dplyr::arrange(SO.BB, desc(BB))
+```
+## The pitcher with the most walks was Roger Clemens, and he ranked 3rd in Strikeout to Walk ratio. The pitcher with the least amount of walks  was Pud Galvin, and ranked 5th in strikeout to walk ratio.
+
+## End of Assignment
+
+
+
+
+

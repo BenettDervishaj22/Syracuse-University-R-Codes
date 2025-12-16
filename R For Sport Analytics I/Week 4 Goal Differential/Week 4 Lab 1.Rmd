@@ -1,0 +1,57 @@
+---
+title: "Week 4 Lab 1"
+output: html_document
+date: "2024-11-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+```{r}
+NHLStats <- read_csv("2022-2023 NHL Season Rankings.csv")
+```
+```{r}
+NHLStats <- NHLStats %>%
+  mutate(WPCT_PYT = GF ^ 2 / (GF ^ 2 + GA ^ 2)) %>%
+  mutate(WIN_PCT = W / GP) %>%
+  mutate(GD = GF - GA)
+```
+
+```{r}
+NHLStats <- NHLStats %>%
+  mutate(logWratio = log(W / GP),
+         logGratio = log(GF / GA))
+pytfit <- lm(logWratio ~ 0 + logGratio, data = NHLStats)
+pytfit
+```
+```{r}
+exponent <- pytfit$coefficients["logGratio"]
+```
+
+```{r}
+NHLStats <- NHLStats %>%
+  mutate(WPCT_PYT = GF ^ exponent / (GF ^ exponent + GA ^ exponent))
+```
+
+```{r}
+NHLStats <- NHLStats %>%
+  mutate(residuals_pyt = WIN_PCT - WPCT_PYT)
+NHLStats %>%
+  summarize(rmse = sqrt(mean(residuals_pyt^2)))
+```
+
+```{r}
+NHLStats %>%
+ggplot(NHLStats, aes(x = GD, y = residuals_pyt)) +
+  geom_point(alpha = 0.3) +
+  geom_hline(yintercept = 0, linetype = 3) +
+  xlab("Goal Differential") + ylab("Residual") +
+  geom_point(data = TeamID, color = "red") +
+  geom_text(data = TeamID , color = "blue",
+                  aes(label = paste(Team_ID, YEAR_ID)))
+```
+

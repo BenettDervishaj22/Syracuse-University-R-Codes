@@ -1,0 +1,100 @@
+---
+title: "Week 6 Lab 1 Statcast"
+output: html_document
+date: "2024-11-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(baseballr)
+```
+
+```{r}
+Statcast <- read_csv("statcastAugust2019.csv")
+View(Statcast)
+```
+```{r}
+Statcast %>% filter(player_name == "Jacob deGrom") %>%
+  arrange(desc(game_date)) -> JDStatcast
+```
+```{r}
+JDStatcast_1 <- scrape_statcast_savant_batter_all("2019-08-01", "2019-08-07")
+JDStatcast_2 <- scrape_statcast_savant_batter_all("2019-08-08", "2019-08-14")
+JDStatcast_3 <- scrape_statcast_savant_batter_all("2019-08-15", "2019-08-21")
+JDStatcast_4 <- scrape_statcast_savant_batter_all("2019-08-22", "2019-08-28")
+JDStatcast_5 <- scrape_statcast_savant_batter_all("2019-08-29", "2019-08-30")
+
+Statcast <- rbind(JDStatcast_1, JDStatcast_2, JDStatcast_3, JDStatcast_4, JDStatcast_5)
+```
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+my_pitches <- JDStatcast
+view(JDStatcast)
+```
+
+
+```{r}
+plate_width <- 17 + (9/pi)
+k_zone_plot <- ggplot(NULL, aes(x = plate_x, y = plate_z)) +
+  geom_rect(xmin = -(plate_width/2)/12,
+  xmax = (plate_width/2)/12,
+  ymin = 1.5,
+  ymax = 3.6, color = "red", alpha = 0) +
+  coord_equal() +
+  scale_x_continuous("Horizontal location (ft.)",
+                     limits = c(-2, 2)) +
+  scale_y_continuous("Vertical location (ft.)",
+                     limits = c(0,5))
+```
+
+```{r}
+k_zone_plot %+% (my_pitches) +
+  aes(color = type, shape = pitch_type) +
+  geom_point(alpha = 0.5) +
+ggtitle("Jacob deGrom August 2019 Strike Zone Plot")
+ggsave("Jacob deGrom August 2019 Strike Zone Plot.png")
+ggsave("Jacob deGrom August 2019 Strike Zone Plot.svg")
+ggsave("Jacob deGrom August 2019 Strike Zone Plot.pdf")
+```
+
+```{r}
+taken <- my_pitches %>%
+  filter(description == "called_strike" | description == "ball")
+```
+
+```{r}
+zones <- taken %>%
+  group_by(zone) %>%
+  summarize(
+    N= n(),
+    right_edge = min(1.5, max(plate_x)),
+    left_edge = max(-1.5, min(plate_x)),
+    top_edge = min(5, quantile(plate_z, 0.95, na.rm = TRUE)),
+    bottom_edge = max(0,quantile(plate_z, 0.05, na.rm = TRUE)),
+    strike_pct = sum(description == "called_strike") / n(),
+    plate_x = mean(plate_x),
+    plate_z = mean(plate_z))
+```
+
+```{r}
+library(ggrepel)
+k_zone_plot %+% zones +
+  geom_rect(aes(xmax = right_edge, xmin = left_edge,
+                ymax = top_edge, ymin = bottom_edge,
+                fill = strike_pct, alpha = strike_pct),
+            color = "blue") +
+  geom_text_repel(size = 3, aes(label = round(strike_pct, 2),
+                                color = strike_pct < 0.5)) +
+  scale_fill_gradient(low = "blue", high = "green") +
+  scale_color_manual(values = c("white", "black")) +
+  guides(color = FALSE, alpha = FALSE)
+```
+

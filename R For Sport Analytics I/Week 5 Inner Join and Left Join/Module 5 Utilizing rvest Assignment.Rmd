@@ -1,0 +1,85 @@
+---
+title: "Week 5 Assignment"
+output: html_document
+date: "2024-11-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rvest)
+library(Lahman)
+```
+
+
+```{r}
+url <- ("https://www.fangraphs.com/teams/mets/stats?season=2024")
+Webpage <- read_html(url)
+Webpage
+```
+```{r}
+Webpage %>% html_table(fill = TRUE) -> tables
+battingStats <- tables[[9]] %>% head(-1)
+startingPitchingStats <- tables[[10]] %>% head(-1)
+```
+```{r}
+Webpage %>% html_nodes(".team-select-change option") %>% html_attr(name = "value") -> teamPostfixes
+teamPostfixes %>% tail(30) -> teamPostfixes
+
+Webpage %>% html_nodes(".team-select-change option") %>% html_attr(name = "label") -> teamNames
+teamNames %>% tail(30) -> teamNames
+```
+
+```{r}
+scrapeStatTables <- function(teamPostFix){
+  url <- paste("https://www.fangraphs.com",teamPostFix,"/stats",sep = "")
+  print(url)
+  Webpage <- read_html(url)
+  Webpage %>% html_table(fill = TRUE) -> tables
+  return(tables)
+}
+
+allBattingStats <- tibble()
+allSPStats <- tibble()
+
+for(i in 1:length(teamPostfixes)){
+  Sys.sleep(runif(1)*10)
+  
+  tables <- scrapeStatTables(teamPostfixes[i])
+  
+  battingStats <- tables[[9]] %>% head(-1)
+  battingStats$Team <- teamNames[i]
+  allBattingStats <- bind_rows(allBattingStats, battingStats)
+  
+  SPPitchingStats <- tables[[10]] %>% head(-1)
+  SPPitchingStats$Team <- teamNames[i]
+  allSPStats <- bind_rows(allSPStats, SPPitchingStats)
+}
+```
+
+```{r}
+MetsBatting <- allBattingStats %>% filter(Team == "Mets")
+PhilliesBatting <- allBattingStats %>% filter(Team == "Phillies")
+MetsPitching <- allSPStats %>% filter(Team == "Mets")
+PhilliesPitching <- allSPStats %>% filter(Team == "Phillies")
+```
+
+```{r}
+MetsBatting %>%
+  full_join(PhilliesBatting) %>% arrange(desc(G))-> MetsPhilliesBatting
+MetsPitching %>%
+  full_join(PhilliesPitching) %>% arrange(desc(GS))-> MetsPhilliesPitching
+
+view(MetsPhilliesBatting)
+view(MetsPhilliesPitching)
+```
+```{r}
+write_csv(MetsPhilliesBatting, "MetsPhillies2024BattingStats.csv")
+write_csv(MetsPhilliesPitching, "MetsPhillies2024StartingPitchingStats.csv")
+```
+
+
+

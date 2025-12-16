@@ -1,0 +1,147 @@
+---
+title: "Shiny Apps Lab 1"
+output: html_document
+date: "2024-12-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(shiny)
+library(tidyverse)
+August2019 <- read_csv("statcastAugust2019.csv")
+my_pitches <- August2019
+```
+```{r}
+ui <- fluidPage(
+  titlePanel("Title panel"),
+  
+  sidebarLayout(
+    sidebarPanel(checkboxGroupInput("checkGroup",
+                                    h3("Checkbox group"),
+                                    choices = list("Choice 1" = 1,
+                                                   "Choice 2" = 2,
+                                                   "Choice 3" = 3),
+                                    
+                                    selected = 1)),
+    
+                                    selectInput("select", h3("Select box"),
+                                                choices = list("Choice 1" = 1, "Choice 2" = 2,
+                                                               "Choice 3" = 3), selected = 1)
+                    ),
+    mainPanel()
+    
+  )
+
+server <- function(input,output) {
+  
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+```{r}
+library(tidyverse)
+masterid <- read_csv("masterid.csv")
+my_pitches <- August2019
+```
+
+```{r}
+plate_width <- 17 + 2 *(9/pi)
+k_zone_plot <- ggplot(NULL, aes(x = plate_X, y = plate_z)) +
+  geom_rect(xmin = -(plate_width/2)/12,
+            xmax = (plate_width/2)/12,
+            ymin = 1.5,
+            ymax = 3.6, color = "orange", alpha = 0) +
+  coord_equal() +
+  scale_x_continuous("Horizontal location (ft.)",
+                     limits = c(-2,2)) +
+  scale_y_continuous("Vertical location (ft.)",
+                     limits = c(0,5))
+```
+
+
+```{r}
+ui <- fluidPage()
+titlePanel("Nathan Eovaldi's Three Pitches and Pitch Location")
+
+sidebarLayout(
+  sidebarPanel(
+    
+    sliderInput(inputId = "bins",
+                label = "Number of bins:",
+                min = 1,
+                max = 300,
+                value = 20)
+  ),
+  
+  mainPanel(
+    
+    plotOutput(outputId = "NathanEovaldiPlot"),
+   
+  )
+ )
+
+sidebarLayout(
+  
+  sidebarPanel(
+    checkboxGroupInput("pitch_type",
+                        h3("Pitch Types"),
+                       choices = list("FF" = "FF",
+                                      "SL" = "SL",
+                                      "CU" = "CU"),
+                       selected = c("FF","SL","CU")
+  ),
+    
+    plotOutput(outputId = "pitchChart")
+  )
+)
+server <- function(input, output) {
+  
+  my_pitches %>% filter(pitcher == 434378) -> SelectedPitcher
+  output$pitchChart <- renderPlot({
+    SelectedPitcher %>% filter(type %in% input$types) -> SelectedPitchResults
+    
+    k_zone_plot%?% SelectedPitcherResults +
+      aes(color = pitch_name, shape = type) +
+      geom_point() + ggtitle("Pitch Chart")})
+  
+  output$NathanEovaldiPlot <- renderPlot({
+    my_pitches -> NathanEovaldi
+    taken <- my_pitches %>% filter(pitch_type == "FF" | pitch_type == "SL" | pitch_type == "CU")
+  
+    #Histogram Model
+    
+    taken$zFromPlate <- abs(taken$plate_z - 3.00)
+    taken$xFromPlate <- abs(taken$plate_x)
+    taken$distanceFromPlate <- sqrt(taken$xFromPlate^2 + taken$zFromPlate^2)
+    
+    ggplot(taken,aes(x=distanceFromPlate, color=pitch_type)) + geom_histogram(bins = input$bins) +
+      ggtitle("Histogram of Signature Nathan Eovaldi Pitches") + xlab("Distance From Strike Zone (In Feet)") + ylab("n")
+   
+    
+    })
+}
+```
+```{r}
+shinyApp(ui = ui, server = server)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

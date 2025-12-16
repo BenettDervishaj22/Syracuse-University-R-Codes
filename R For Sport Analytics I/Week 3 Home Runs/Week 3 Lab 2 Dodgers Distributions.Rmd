@@ -1,0 +1,62 @@
+---
+title: 'Lab 3 Week 2: Comparing Dodgers Distributions'
+output: html_document
+date: "2024-11-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+```{r}
+LADHistory <- read_csv("data/LADTeamHistory.csv")
+LADHistory2 <- read_csv("data/LADTeamHistory2.csv")
+```
+```{r}
+ggplot(LADHistory2, aes(x = FranchiseName)) + 
+geom_bar() +
+xlab("Franchise Name") +
+ylab("Frequency") +
+ggtitle("Franchise Names in Dodgers History")
+```
+
+```{r}
+LADHistory2 <- read_csv("data/LADTeamHistory2.csv")
+LADHistory2 <- LADHistory2 %>%
+  mutate(FranchiseName = (From + To) / 2, 
+  FranchiseName = cut(Year,
+                      breaks = c (1880, 1890, 1894, 1898, 1916, 1932, 1957, 2030),
+                      labels = c ("Brooklyn", "Bridgegrooms", "Grooms",
+                                  "Robins", "Superbas", "BK Dodgers",
+                                  "LA Dodgers")))
+```
+```{r}
+ggplot(LADHistory2, aes(x = L, fill = FranchiseName)) +
+  scale_fill_ordinal() + geom_density(alpha = 5)
+```
+```{r}
+ggplot(LADHistory2, aes(x = R, fill = FranchiseName)) +
+geom_histogram(breaks = seq(0, 900, by = 100))
+```
+```{r}
+library(tidyverse)
+```
+```{r}
+library(plotly)
+ggplot(LADHistory2, aes(x = L, fill = FranchiseName)) +
+  scale_fill_ordinal() + geom_density(alpha = 0.5) -> LADDensityPlot
+
+PLOTLYDENSITY <- ggplotly(LADDensityPlot)
+PLOTLYDENSITY
+```
+```{r}
+LADHistory2 %>% plot_ly(x = ~RA) %>% add_boxplot() -> RABoxPlot1
+RABoxPlot1
+LADHistory2 %>% plot_ly(x = ~RA, color = ~FranchiseName) %>% add_boxplot() -> RABoxPlot
+RABoxPlot
+```
+
+
