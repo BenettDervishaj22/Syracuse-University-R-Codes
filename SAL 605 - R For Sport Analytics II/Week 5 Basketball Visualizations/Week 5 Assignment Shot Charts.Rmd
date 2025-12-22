@@ -1,0 +1,52 @@
+---
+title: "Week 5 Assignment Shot Charts"
+output: html_document
+date: "2025-09-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Question 1 and 2
+library(BasketballAnalyzeR)
+library(tidyverse)
+```
+
+```{r}
+#Question 3 and 4 - Transforming PbP.BDB using PbPmanipulation & Scaling Coordinate System
+PbP <- PbPmanipulation(PbP.BDB)
+PbP %>% mutate(xx = original_x/10, yy=original_y/10-41.75) -> PbP
+```
+
+```{r}
+#Question 5 - Filtering for 2 Warriors Players in the 2017-2018 Season
+PbP %>% filter(player == "Kevin Durant") -> KevinDurant
+PbP %>% filter(player == "Klay Thompson") -> KlayThompson
+```
+
+```{r}
+# Example Shot Charts for Kevin Durant and Klay Thompson
+shotchart(data = KevinDurant, x="xx",y="yy",z="result",scatter=T)
+shotchart(data = KlayThompson, x="xx",y="yy",z="result", scatter=T)
+```
+
+```{r}
+# Question 5 and 6 - Kevin Durant's 2017-2018 Shot Chart
+shotchart(data=KevinDurant,x="xx", y="yy", z="playlength", num.sect=5, type = "sectors", scatter=F, result="result") -> KevinDurantSC
+
+KevinDurantSC +
+  ggtitle("Kevin Durant's 2017-2018 Shot Chart")
+ggsave("KevinDurantSC.png")
+```
+
+```{r}
+# Question 5 and 6 - Klay Thompson's 2017-2018 Shot Chart
+shotchart(data=KlayThompson, x="xx",y="yy",z="playlength", num.sect=5,type="sectors",scatter=F, result= "result") -> KlayThompsonSC
+
+KlayThompsonSC +
+  ggtitle("Klay Thompson's 2017-2018 Shot Chart")
+ggsave("KlayThompsonSC.png")
+```
+

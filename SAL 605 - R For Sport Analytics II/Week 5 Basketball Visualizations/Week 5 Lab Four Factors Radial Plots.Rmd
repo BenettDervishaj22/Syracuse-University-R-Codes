@@ -1,0 +1,43 @@
+---
+title: "Week 5 Lab Four Factor Radial Plots"
+output: html_document
+date: "2025-09-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(BasketballAnalyzeR)
+library(tidyverse)
+```
+
+```{r}
+tm <- c("NYK", "LAL", "OKC", "MIA")
+selTeams <- which(Tadd$team %in% tm)
+FF.sel <- fourfactors(Tbox[selTeams,], Obox[selTeams,])
+FF.sel
+```
+
+```{r}
+plot(FF.sel)
+```
+
+```{r}
+radialprofile(data = FF.sel %>% select(-Team), title=FF.sel$Team, std=T)
+```
+
+```{r}
+Pbox.Team <- Pbox %>% filter(Team == "New York Knicks" |
+                             Team == "Los Angeles Lakers" |
+                             Team == "Oklahoma City Thunder" |
+                             Team == "Miami Heat")
+Pbox.Team %>% transmute(P2M=P2M/MIN, P3M=P3M/MIN, FTM=FTM/MIN,
+REB=(OREB+DREB)/MIN, AST=AST/MIN, STL=STL/MIN, BLK=BLK/MIN) -> X
+
+X
+
+radialprofile(data=X, title=Pbox.Team$Player, std=F)
+```
+
