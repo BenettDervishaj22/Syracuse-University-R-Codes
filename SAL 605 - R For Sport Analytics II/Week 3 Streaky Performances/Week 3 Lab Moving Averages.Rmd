@@ -1,0 +1,96 @@
+---
+title: "Week 3 Lab Moving Averages"
+output: html_document
+date: "2025-09-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(Lahman)
+```
+
+```{r}
+fields <- read_csv("fields.csv")
+data2021 <- read_csv("all2021.csv",
+                     col_names = pull(fields, Header),
+                     na = character())
+```
+
+```{r}
+# Pete Alonso Pull
+alonso_ID <- People %>% filter(nameFirst == "Pete", nameLast == "Alonso") %>% pull(retroID)
+
+Alonso <- data2021 %>%
+  filter(BAT_ID == alonso_ID, AB_FL == TRUE)
+Alonso
+
+# Alonso - Mutating for H
+Alonso %>% 
+  mutate(HIT = ifelse(H_FL > 0, 1, 0)) -> Alonso
+Alonso
+
+# Alonso Season Average
+Alonso %>% summarize(AVG = sum(HIT) / sum(AB_FL))
+```
+```{r}
+streaks <- function(y) {
+  x <- rle(y)
+  class(x) <- "list"
+  return(as_tibble(x))
+}
+```
+
+
+```{r}
+Alonso %>%
+  mutate(H = ifelse(H_FL > 0, 1, 0),
+         DATE = str_sub(GAME_ID, 4, 12),
+        AB = 1) %>%
+  arrange(DATE) -> Alonso
+```
+
+```{r}
+Alonso %>%
+  pull(H) %>%
+  streaks() %>%
+  filter(values == 1) %>%
+  pull(lengths) %>%
+  tibble()
+```
+
+```{r}
+Alonso %>%
+  pull(H) %>%
+  streaks() %>%
+  filter(values == 0) %>%
+  pull(lengths) %>%
+  table()
+
+# We can see that Alonso had a streak of 20 outs, 1 time. 13 outs 1 time, 12 outs 3 times.
+```
+
+```{r}
+# Moving Averages
+
+Alonso %>%
+  mutate(AB_Num = row_number()) %>%
+  filter(H == 1) -> Alonso.Hits
+
+moving_average(Alonso, 30) %>%
+  ggplot(aes(Game, Average)) +
+  geom_line(color = "darkturquoise") + xlab("AB") +
+  geom_hline(yintercept = mean(Alonso$H), color = "snow") +
+  geom_rug(data = Alonso.Hits,
+           aes(AB_Num, .3 * H), sides = "b", color = "limegreen") +
+  labs(title = "Pete Alonso's 2021 Moving Average",
+       x = "At Bats",
+       y = "Batting Average") +
+  theme_dark()
+ggsave("Pete Alonso 2021 Moving Average.png")
+    
+```
+

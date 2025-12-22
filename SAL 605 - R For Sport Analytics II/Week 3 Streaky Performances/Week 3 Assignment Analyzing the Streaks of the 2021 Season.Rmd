@@ -1,0 +1,129 @@
+---
+title: "Week 3 Assignment Analyzing the Streaks of the 2021 Season"
+output: html_document
+date: "2025-09-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(Lahman)
+```
+
+```{r}
+# Question 1 - Reading the Data
+fields <- read_csv("fields.csv")
+data2021 <- read_csv("all2021.csv",
+                     col_names = pull(fields, Header),
+                     na = character())
+```
+
+```{r}
+# Question 2 - Filtering AB Events
+data2021_AB <- data2021 %>%
+  filter(AB_FL == TRUE) %>%
+  mutate(
+    H = ifelse(H_FL > 0, 1, 0),
+    DATE = substr(GAME_ID, 4, 12),
+    AB = 1) %>%
+  arrange(DATE)
+```
+
+```{r}
+# Question 3 - Longest Streak Function
+streaks <- function(y) {
+  x <- rle(y)
+  class(x) <- "list"
+  return(as_tibble(x))
+}
+
+longest_streak <- function(df, playerid){
+  df %>%
+    filter(BAT_ID == playerid) %>%
+    arrange(DATE) %>%
+    pull(H) %>%
+    streaks() %>%
+    filter(values == 1) %>%
+    summarize(max_streak = max(lengths)) %>%
+    pull(max_streak)
+}
+
+# Function Test - Pete Alonso
+Alonso_ID <- People %>% filter(nameFirst == "Pete", nameLast == "Alonso") %>% pull(retroID)
+Alonso_ID
+longest_streak(data2021_AB,"alonp001")
+```
+
+```{r}
+# Question 4 - Finding BAT ID's for players with 400+ AB
+players_400 <- data2021_AB  %>%
+  group_by(BAT_ID) %>%
+  summarize(total_AB = sum(AB)) %>%
+  filter(total_AB >= 400) %>%
+  pull(BAT_ID)
+```
+
+```{r}
+# Question 5 - Running the Longest Streak Function for all players
+data2021_streaks <- map_df(players_400, function(pid){
+  tibble(
+    BAT_ID = pid,
+    longest = longest_streak(data2021_AB, pid)
+  )
+})
+
+# Players with 400 or more AB's and their longest hit streaks in the 2021 season
+data2021_streaks
+```
+
+```{r}
+# Question 6 - Finding the Top Player
+top_player <- data2021_streaks %>%
+  arrange(desc(longest)) %>%
+  head(1)
+
+print(top_player)
+
+random_mix <- function(H) {
+  H %>%
+    sample() %>%
+    streaks() %>%
+    filter(values == 0) %>%
+    summarize(C= sum(lengths ^ 2)) %>%
+    pull()
+}
+
+clump_test <- function(data, playerid) {
+  data %>%
+    filter(BAT_ID == playerid, AB_FL == TRUE) %>%
+    mutate(H = ifelse(H_FL > 0, 1, 0),
+           DATE = substr(GAME_ID, 4, 12)) %>%
+    arrange(DATE) -> player.AB #player's AB plays
+  
+  player.AB %>%
+    pull(H) %>% #hits
+    streaks() %>% #find streaks
+    filter(values == 0) %>% #gaps between hits
+    summarize(C = sum(lengths ^ 2)) %>% #sum of squares
+    pull() -> stat #extract streakiness stat
+  
+  set.seed(123)
+  ST <- replicate(1000, random_mix(player.AB$H)) #reshuffle H, find stat 1000 times
+  cumulative_distribution_function <- ecdf(ST) #cumulative distribution function
+  
+  ggplot(data.frame(ST), aes(ST)) +
+    geom_histogram(aes(y = stat(density)), bins = 20,
+                   color = "snow", fill = "navyblue") +
+    geom_vline(xintercept = stat, size = 2) +
+    annotate(geom = "text", x = stat * 1.10,
+             y = 0.0010, label = paste("OBSERVED", cumulative_distribution_function(stat)),
+             size = 4.5) + #label quantile of streakiness stat observation
+    theme_dark() +
+    labs(title = "Miguel Cabrera's 2021 Longest Streak Quantile")
+}
+clump_test(data2021_AB, top_player$BAT_ID)
+```
+
