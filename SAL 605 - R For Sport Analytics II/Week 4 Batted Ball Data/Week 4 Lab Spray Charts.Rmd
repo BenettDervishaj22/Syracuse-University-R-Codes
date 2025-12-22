@@ -1,0 +1,78 @@
+---
+title: "Week 4 Lab Spray Charts"
+output: html_document
+date: "2025-09-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(baseballr)
+library(tidyverse)
+```
+
+```{r}
+cespedes_id <- playerid_lookup(last_name = "Céspedes", first_name = "Yoenis") %>% pull(mlbam_id)
+cespedes_id
+
+
+cespedes <- scrape_statcast_savant(start_date = "2015-09-01",
+                                   end_date = "2015-09-30",
+                                   playerid = cespedes_id,
+                                   player_type = "batter")
+```
+
+```{r}
+cespedes_bip <- cespedes %>%
+  filter(type == "X")
+
+cespedes_bip %>%
+  select(events, hc_x, hc_y) %>%
+  head()
+
+spray_chart <- function(...){
+  ggplot(...) +
+    geom_curve(x = 33, xend = 223, y = -100, yend = -100,
+               curvature = - .65) +
+    geom_segment(x = 128, xend = 33, y = -208, yend = -100) +
+    geom_segment(x = 128, xend = 223, y = -208, yend = -100) +
+    geom_curve(x = 83, xend = 173, y = -155, yend = -156,
+               curvature = -.65, linetype = "dotted") +
+    coord_fixed() +
+    scale_x_continuous(NULL, limits = c(25, 225)) +
+    scale_y_continuous(NULL, limits = c(-225,-25)) +
+    ggtitle("Bryce Harper 2015 September Spray Chart")
+}
+```
+
+```{r}
+spray_chart(cespedes_bip, aes(x = hc_x, y = -hc_y, color = events)) +
+  geom_point() +
+  theme_light()
+```
+
+```{r}
+harper_id <- playerid_lookup(last_name = "Harper", first_name = "Bryce") %>% pull(mlbam_id)
+harper_id
+```
+
+```{r}
+harper <- scrape_statcast_savant(start_date = "2015-09-01",
+                                   end_date = "2015-09-30",
+                                   playerid = harper_id,
+                                   player_type = "batter")
+
+harper_bip <- harper %>%
+  filter(type == "X")
+
+harper_bip %>%
+  select(events, hc_x, hc_y) %>%
+  head()
+
+spray_chart(harper_bip, aes(x = hc_x, y = -hc_y, color = events)) +
+  geom_point() +
+  theme_classic()
+```
+
