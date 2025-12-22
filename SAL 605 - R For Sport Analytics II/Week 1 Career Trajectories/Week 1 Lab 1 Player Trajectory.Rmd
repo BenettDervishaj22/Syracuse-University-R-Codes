@@ -1,0 +1,75 @@
+---
+title: "Week 1 Lab 1 Player Trajectory"
+output: html_document
+date: "2025-08-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(Lahman)
+```
+
+```{r}
+# Filtering for Juan Soto's player ID
+People %>% filter(nameFirst == "Juan", nameLast == "Soto") %>%
+  pull(playerID) -> soto_id
+
+Batting %>% replace_na(list(SF = 0, HBP = 0)) -> batting
+```
+
+```{r}
+# Function for Stats
+get_stats <- function(player_id, data) {
+  data %>%
+    filter(playerID == player_id) %>%
+  inner_join(People, by = "playerID")  %>%
+    mutate(birthyear = ifelse(birthMonth >= 7,
+                               birthYear + 1, birthYear),
+           Age = yearID - birthyear,
+           SLG = (H - X2B - X3B - HR +
+                    2 * X2B + 3 * X3B + 4 * HR) / AB,
+           OBP = (H + BB + HBP) / (AB + BB + HBP + SF),
+           OPS = SLG + OBP) %>%
+             select(Age, SLG, OBP, OPS, HR)
+}
+
+```
+
+```{r}
+# Connecting Stats to Juan Soto's Career
+soto <- get_stats(soto_id, batting)
+
+soto %>% ggplot(aes(Age, OBP)) + geom_point()
+
+view(soto)
+write.csv(soto, "Juan Soto OBP Player Trajectory.csv", row.names = FALSE)
+```
+
+```{r}
+fit_model <- function(data) {
+  fit <- lm(OBP ~ I(Age - 30) + I((Age - 30)^2),data = data)
+  b <- coef(fit)
+  Age_Max <- 30 - b[2] / b[3] / 2
+  Max <- b[1] - b[2] ^ 2 / b[3] / 4
+  return(list(fit = fit, Age_Max = Age_Max, Max = Max))
+}
+
+soto_obp_curve <- fit_model(soto)
+soto_obp_curve %>% pluck("fit") %>% summary()
+c(soto_obp_curve$Age_Max, soto_obp_curve$Max)
+
+soto %>% ggplot(aes(Age, OBP)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, size = 1.2,
+              formula = y ~ poly(x, 2, raw = TRUE)) + #setting it so y can be predicted with x + x^2
+  geom_vline(xintercept =  soto_obp_curve$Age_Max,
+             linetype = "dashed", color = "red") +
+  geom_hline(yintercept = soto_obp_curve$Max,
+             linetype = "dashed", color = "red") +
+  annotate(geom = "text", x = c(22,21), y = c(0.35,0.455),
+           label = c("Peak Age", "Max"), size = 5)
+```
+

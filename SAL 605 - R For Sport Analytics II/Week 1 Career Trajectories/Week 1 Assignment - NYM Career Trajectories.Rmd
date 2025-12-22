@@ -1,0 +1,82 @@
+---
+title: "Week 1 Assignment - Career Trajectories"
+output: html_document
+date: "2025-09-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Tidyverse and Lahman Packages
+library(tidyverse)
+library(Lahman)
+```
+
+```{r}
+# Question 1: Gathering New York Mets Batting Data from 2021 - 2023 Seasons
+
+Batting %>% replace_na(list(SF=0,HBP=0)) -> nym_batting
+
+mets_batting_stats <- nym_batting %>%
+  filter(teamID == "NYN", yearID %in% 2021:2023) %>%
+  inner_join(People, by = "playerID") %>% filter(AB >=100)
+```
+
+```{r}
+# Question 2: Creating Function and Model to Calculate HR and Age
+get_stats <- function(data){
+  data %>%
+    mutate(
+      birthYear = ifelse(birthMonth >=7, birthYear + 1, birthYear),
+      Age = yearID - birthYear) %>%
+    select(playerID, nameFirst, nameLast, yearID, Age, HR)
+}
+
+mets_statistics <- get_stats(mets_batting_stats)
+mets_statistics
+```
+
+```{r}
+# Question 2 Continuation Age Function
+fit_model <- function(data){
+  fit <- lm(HR ~ I(Age - 30) + I((Age - 30)^2), data = data)
+  b <- coef(fit)
+  
+  Age_Max <- 30 - b[2] / b[3] / 2
+  Max <- b[1] - b[2] ^ 2 / b[3] / 4
+  return(list(fit = fit, Age_Max = Age_Max, Max = Max))
+}
+
+mets_homer_curve <- fit_model(mets_statistics)
+mets_homer_curve$Age_Max
+mets_homer_curve$Max
+```
+
+```{r}
+# Question 3: Creating the Line Plot Utilizing FE
+mets_homer_curve <- fit_model(mets_statistics)
+mets_homer_curve %>% pluck("fit") -> mets_model
+ages <- seq(min(mets_statistics$Age),max(mets_statistics$Age),1)
+mets_average_players <- tibble(Age = ages, HRS = mets_model$coefficients[1]+
+                                 mets_model$coefficients[2]*(Age-30)+
+                                 mets_model$coefficients[3]*(Age-30)^2)
+```
+
+```{r}
+# Question 3: Creating Line Plot
+mets_average_players %>%
+  ggplot(aes(x = Age, y = HRS))+
+  geom_line(color = "blue", size = 1.2) +
+  geom_vline(xintercept = mets_homer_curve$Age_Max, linetype = "dashed", color = "orange")+
+  geom_hline(yintercept = mets_homer_curve$Max, linetype = "dashed", color = "orange")+
+  annotate("text", x = mets_homer_curve$Age_Max + 0.5, y = min(mets_average_players$HRS),
+           label = paste0("Peak Age: ", round(mets_homer_curve$Age_Max,1)), color = "red") +
+  annotate("text", x = min(ages) + 0.5, y = mets_homer_curve$Max,
+           label = paste0("Max HR: ", round(mets_homer_curve$Max,1)), color = "red") +
+  labs(title = "Projected Home Run Trajectory - New York Mets Batters >= 100 AB (2021 - 2023)",
+       x = "Age", y = "Home Runs") +
+  theme_minimal()
+```
+
