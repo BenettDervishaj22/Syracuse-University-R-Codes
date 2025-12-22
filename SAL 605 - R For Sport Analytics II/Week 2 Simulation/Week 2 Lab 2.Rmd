@@ -1,0 +1,190 @@
+---
+title: "Week 2 Lab"
+output: html_document
+date: "2025-09-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(Lahman)
+```
+
+```{r}
+fields <- read_csv("fields.csv")
+data2022 <- read_csv("all2022.csv",
+                     col_names = pull(fields,Header),
+                     na = character())
+```
+
+```{r}
+data2022 %>%
+  mutate(RUNS = AWAY_SCORE_CT + HOME_SCORE_CT,
+         HALF.INNING = paste(GAME_ID, INN_CT, BAT_HOME_ID),
+         RUNS.SCORED =
+           (BAT_DEST_ID > 3) + (RUN1_DEST_ID > 3) +
+           (RUN2_DEST_ID > 3) + (RUN2_DEST_ID > 3)) ->
+           data2022
+```
+
+```{r}
+data2022 %>%
+  group_by(HALF.INNING) %>%
+  summarize(Outs.Inning = sum(EVENT_OUTS_CT),
+            Runs.Inning = sum(RUNS.SCORED),
+            Runs.Start = first(RUNS),
+            MAX.RUNS = Runs.Inning + Runs.Start) ->
+  half_innings
+```
+
+```{r}
+data2022 %>%
+  inner_join(half_innings, by = "HALF.INNING") %>%
+  mutate(RUNS.ROI = MAX.RUNS - RUNS) ->
+  data2022
+```
+
+```{r}
+data2022 %>%
+  mutate(BASES =
+         paste(ifelse(BASE1_RUN_ID > "",1,0),
+               if_else(BASE2_RUN_ID > "",1,0),
+               if_else(BASE3_RUN_ID > "",1,0), sep = ""),
+         STATE = paste(BASES, OUTS_CT)) ->
+  data2022
+```
+
+```{r}
+data2022 %>%
+  mutate(NRUNNER1 =
+           as.numeric(RUN1_DEST_ID == 1 | BAT_DEST_ID == 1),
+         NRUNNER2 =
+           as.numeric(RUN1_DEST_ID == 2 | RUN2_DEST_ID == 2 |
+                        BAT_DEST_ID == 2),
+         NRUNNER3 =
+           as.numeric(RUN1_DEST_ID == 3 | RUN2_DEST_ID == 3 | RUN3_DEST_ID == 3 | BAT_DEST_ID == 3),
+         NOUTS = OUTS_CT + EVENT_OUTS_CT,
+         NEW.BASES = paste(NRUNNER1, NRUNNER2,
+                           NRUNNER3, sep = ""),
+         NEW.STATE = paste(NEW.BASES, NOUTS)) -> data2022
+
+
+# Restrict attention to plays where there is a change between STATE AND NEW STATE or If runs are scored on play
+data2022 %>%
+  filter((STATE != NEW.STATE) | (RUNS.SCORED > 0)) -> data2022
+
+#Remove extra inning dues to the automatic runner (ghost on second). This is because retrosheet does not encode these runners as BASE2_RUN_ID.
+data2022 %>%
+  filter(INN_CT <= 7) -> data2022
+
+# Finally, we will restrict half innings to only those that are complete and events that are batter events (no stolen bases, balks, wild pitches, etc).
+data2022 %>%
+  filter(Outs.Inning ==3, BAT_EVENT_FL == TRUE) -> data2022c
+```
+
+```{r}
+# Run Expectancy Matrix
+data2022c %>%
+  group_by(STATE) %>%
+  summarise(Mean = mean(RUNS.ROI)) %>%
+  mutate(Outs = substr(STATE, 5,5)) %>%
+  arrange(Outs) -> RUNS
+
+RUNS_out <- matrix(round(RUNS$Mean,2),8,3)
+dimnames(RUNS_out)[[2]] <- c("0 outs", "1 outs", "2 outs")
+dimnames(RUNS_out)[[1]] <- c("000", "001", "010", "011", "100", "101", "110", "111")
+
+RUNS_out
+```
+
+```{r}
+# Simulation 2
+# left join to match the expected run values for the beginning of each plate appearance.
+# New.State matches to the run expectancy matrix to create the variable Runs.New.State Use Left join because the three out states are not present in RUNS
+# Replace_na function to set these run values to zero
+# Variable Runs.State is defined to be the run expectancy of the current state, and the vriable Runs.New.State is defined to be the run expectancy of the new state. The new variable run_value is set equal to the difference in Runs.New.State and Runs.State plus RUNS.SCORED
+data2022 %>%
+  left_join(select(RUNS, -Outs), by = "STATE") %>%
+  rename(Runs.State = Mean) %>%
+  left_join(select(RUNS, -Outs),
+            by = c("NEW.STATE" = "STATE")) %>%
+  rename(Runs.New.State = Mean) %>%
+  replace_na(list(Runs.New.State = 0)) %>%
+  mutate(run_value = Runs.New.State - Runs.State + RUNS.SCORED) -> data2022
+```
+
+```{r}
+# Francisco Lindor 2022 Player Comparison
+
+People %>% filter(nameFirst == "Francisco", nameLast == "Lindor") %>% pull(retroID) -> lindor.id
+print(lindor.id)
+
+data2022 %>%
+  filter(BAT_ID == lindor.id, BAT_EVENT_FL == T) -> lindor
+
+lindor %>%
+  select(STATE, NEW.STATE, run_value) %>%
+  slice(1:4)
+
+# How Did Lindor do overall the 2022 Season?
+# Using geom_jitter, we constructed a jittered scatter plot that shows the run valuess for all plate appearances organzied by the runners state.
+# Jittering the points in the horizontal direction is helpful in showing the density of run values. We also add a horizontal line at the value zero to the graph - points above the line (below the line) correspond to positive (negative) contributions.
+lindor %>% ggplot(aes(BASES, run_value)) +
+  geom_jitter(width = 0.25, alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "blue") +
+  xlab("RUNNERS") +
+  ggtitle("2022 Francisco Lindor Run Value")
+  ggsave("2022 Francisco Lindor Run Value.pdf")
+
+# When the bases were empty (000), the range of possible run values was relatively small.
+```
+```{r}
+# Francisco Lindor RE24
+# To understand total run production for the player for the 2022 season, we use the summarize() function together with the sum() and n() functions to compute the number of opportunities and sum of run values for each of the runners situations
+
+lindor %>%
+  group_by(BASES) %>%
+  summarize(RUNS = sum(run_value),
+            PA = n()) %>%
+  mutate(Runs_per_PA = RUNS/PA) -> Runs_Lindor
+Runs_Lindor
+
+# Total run contribution for the season can be computed by summing the last column of the previous DF. This measure of batting performance is known as RE24, since it represents the change in run expectancy over the 24 base/out states [Appleman, 2008]. This is only for the first 7 innings of any game that Lindor played this particular season.
+Runs_Lindor %>% summarize(RE24 = sum(RUNS))
+```
+
+```{r}
+# Corey Seager Player Comparison
+People %>% filter(nameFirst == "Corey", nameLast == "Seager") %>% pull(retroID) -> seager.id
+print(seager.id)
+
+data2022 %>%
+  filter(BAT_ID == seager.id, BAT_EVENT_FL == T) -> seager
+
+seager %>%
+  select(STATE, NEW.STATE, run_value) %>%
+  slice(1:4)
+
+seager %>% ggplot(aes(BASES, run_value)) +
+  geom_jitter(width = 0.25, alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red")+
+  xlab("RUNNERS")+
+  ggtitle("Corey Seager 2022 Run Value")
+  ggsave("2022 Corey Seager Run Value.pdf")
+```
+```{r}
+# Corey Seager FE
+seager %>%
+  group_by(BASES) %>%
+  summarize(RUNS = sum(run_value),
+            PA = n()) %>%
+  mutate(Runs_per_PA = RUNS/PA) -> Runs_Seager
+Runs_Seager
+
+Runs_Seager %>% summarize(RE24 = sum(RUNS))
+
+```
+
