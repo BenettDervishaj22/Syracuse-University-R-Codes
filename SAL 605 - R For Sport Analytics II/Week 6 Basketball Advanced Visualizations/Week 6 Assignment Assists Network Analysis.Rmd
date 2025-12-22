@@ -1,0 +1,77 @@
+---
+title: 'Week 6 Assignment: Assists Network Analysis'
+output: html_document
+date: "2025-10-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Question 1 and 2 (Installed BasketballAnalyzeR and Loaded tidyverse/BasketballAnalyzer packages)
+library(tidyverse)
+library(BasketballAnalyzeR)
+```
+
+```{r}
+# Question 3 and 4 Transforming PbP.BDB using PbPmanipulation() and storing to GSW possession
+PbP.BDB %>%
+  PbPmanipulation() %>%
+  filter(team == "GSW") -> PbP.GSW
+```
+
+```{r}
+# Question 5 The Expected Point Value of all field goals for the Warriors
+PbP.GSW %>%
+  filter(ShotType %in% c("2P", "3P")) -> GSW.FG
+
+
+GSW_Point_Expectations <- mean(GSW.FG$points)
+tibble(GSW_Point_Expectations)
+```
+
+```{r}
+# Question 6 Graphing the Assists Network for the entire Warriors team.
+netdata <- assistnet(PbP.GSW)
+set.seed(7)
+plot(netdata, layout="circle", edge.thr=20)
+```
+
+```{r}
+# Question 7 Removing plays where Stephen Curry is not on the court and storing in new DF.
+PbP.GSW %>%
+  filter(if_all(a1:h5, ~ "Stephen Curry" != .x)) -> PbP.GSW.SC0
+```
+
+```{r}
+# Question 8 - The Expected Point Value without Stephen Curry for the Warriors
+PbP.GSW.SC0 %>%
+  filter(ShotType %in% c("2P", "3P")) -> GSW.FG.SC0
+
+GSWPointExp_NOSC <- mean(GSW.FG.SC0$points)
+tibble(GSWPointExp_NOSC)
+```
+
+```{r}
+# Question 9 - Graphing assists network without Stephen Curry
+netdata.SC0 <- assistnet(PbP.GSW.SC0)
+set.seed(7)
+plot(netdata.SC0, layout="circle", edge.thr=20)
+```
+
+```{r}
+# Question 10 - Narrative of the difference between assists networks and expected point values
+
+# Assists networks
+
+# After reviewing both assists networks with and without Stephen Curry on the floor, it appears that Curry is a true difference maker for the Warriors team. The assist networks show similarities where Draymond Green remains the primary player assisting his teammates, specifically showing that he prioritizes Klay Thompson (>60 assists) and Kevin Durant (>40 assists) when Stephen Curry is not on the floor. The assists are heavily concentrated on these 3 players when Curry isn't in the game or involved in the play.
+
+# When Curry is on the floor, Draymond's assist totals to KD remain similar, which indicates that Draymond is considered the role of point guard, who passes the ball frequently to his teammates for a score. In addition to Klay and KD, Draymond prioritizes getting Curry the ball as well, assisting him in the 50-75 range per the network color code. Curry dishes the rock to his star teammates as well, which indicates he is also playing his role perfectly. All in all, when Curry is on the floor, the ball is distributed far more often to everyone on the team, compared to when he is not. This could mean that Curry enters the game when the bench players are in, indicating why he the ball was being moved around frequently.
+
+# Expected Point Values
+tibble(GSW_Point_Expectations, GSWPointExp_NOSC)
+
+# The Golden State Warriors point expected total is 1.138272 when Curry is on the floor, compared to 1.077308 when he is not in the game. This is an indicating that The Warriors score 1.138272 more points when Curry is on the floor, compared to 1.077308 when he isn't. This isn't a large disparity as one might think, considering the other 3 all star players they had on the floor without Curry being involved in the play. Durant, Thompson, and Green were all efficient at scoring the ball, specifically Thompson and Durant. Regardless, Curry's presence in the game has an impact on the expected point values and shows why he was a catalyst for this Warriors team during their golden period of basketball.
+```
+

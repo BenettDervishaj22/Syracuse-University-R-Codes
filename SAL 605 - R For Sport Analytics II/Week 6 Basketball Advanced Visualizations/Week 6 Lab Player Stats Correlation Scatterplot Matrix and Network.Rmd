@@ -1,0 +1,49 @@
+---
+title: "Week 6 Lab Player Stats Correlation Scatterplot Matrix and Network"
+output: html_document
+date: "2025-10-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(baseballr)
+library(BasketballAnalyzeR)
+
+# Read batting data
+nym_batting <- read.csv("NYM_2025_Batting.csv")
+
+# Filter and normalize per-AB stats
+NYM <- nym_batting %>%
+  filter(AB >= 100) %>%
+  transmute(
+    HR = HR / AB,
+    X2B = X2B / AB,
+    RBI = RBI / AB,
+    SO = SO / AB,
+    BB = BB / AB
+  )
+
+NYM
+round(cor(NYM[,1:5], method = "spearman"), 2)
+# Run correlation analysis with threshold 0.5
+corrmatrix <- corranalysis(NYM[, 1:5], threshold = 0.30)
+# Plot the correlation network
+plot(corrmatrix)
+
+
+# X2B does not have a strong correlation (above threshold) with any of the other variables in the data. Less than the 0.2 in absolute value.
+
+# X2B is relatively independent, doesnt mean there is no correlation at all, just below the required levels.
+
+# X2B and HR - no correlation
+# X2B and RBI - weak positive correlation
+# X2B and SO - moderate negative correlation
+# X2B and BB - weak negative correlation
+
+```
+
+
