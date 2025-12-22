@@ -1,0 +1,139 @@
+---
+title: "Week 4 Assignment Analyzing Launch Angle and Exit Velocity of the 2022 season"
+output: html_document
+date: "2025-09-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(Lahman)
+library(baseballr)
+```
+
+```{r}
+# Question 1 - Statcast Data Scrape Full 2022 Season
+season <- 2022
+seasonTable <- tibble()
+days <- seq(from = as.Date(paste0(season,"-04-01")), to=as.Date(paste0(season,"-11-09")), by = '2 days')
+for (i in seq_along(days))
+{
+  print(paste(days[i],"to", days[i]+1))
+  
+  currentPeriod <- scrape_statcast_savant(start_date = days[i], end_date = days[i]+1, player_type = "batter")
+  currentPeriod$outs_when_up <- as.numeric(currentPeriod$outs_when_up)
+  currentPeriod$game_type <- ifelse(currentPeriod$game_type == FALSE, "", currentPeriod$game_type)
+  currentPeriod$inning <- as.integer(currentPeriod$inning)
+  currentPeriod$pitch_number <- as.integer(currentPeriod$pitch_number)
+  currentPeriod$break_angle_deprecated <- as.logical(currentPeriod$break_angle_deprecated)
+  currentPeriod$break_length_deprecated <- as.logical(currentPeriod$break_length_deprecated)
+  currentPeriod$game_year <- as.integer(currentPeriod$game_year)
+  if(nrow(currentPeriod)==0){
+    next
+  }
+  seasonTable %>% bind_rows(currentPeriod) -> seasonTable
+}
+seasonTable %>% arrange(game_date) %>% write.csv(paste0("statcast",season,".csv"))
+```
+
+```{r}
+# Question 1 Cont. - Reading in Statcast CSV
+sc_2022 <- read.csv("statcast2022.csv") %>% filter(game_type != "S")
+
+sc_bips <- sc_2022 %>%
+  filter(type == "X")
+```
+
+```{r}
+# Question 2 - Creating Guidelines and Predicting BA and wOBA (Batting Average) (Singular Graph)
+guidelines_BA <- tibble(
+  launch_angle = c(10, 25, 50),
+  launch_speed = 40,
+  label = c("Ground Balls", "Line drives", "Flyballs")
+)
+
+ev_plot_BA <- sc_bips %>%
+  # for speed
+  sample_n(nrow(.) / 2) %>%
+  ggplot(aes(x = launch_speed, y = launch_angle,
+             color = estimated_ba_using_speedangle)) +
+  geom_point(alpha = 0.05) +
+  geom_hline(data = guidelines_BA, aes(yintercept = launch_angle),
+             color = "black", linetype = 2) +
+  geom_text(data = guidelines_BA, 
+            aes(label = label, y = launch_angle - 4),
+            color = "black", hjust = "left") +
+  scale_color_gradient2("BA", low = "blue", mid = "white", high = "red", midpoint = 0.5) +
+  scale_x_continuous("Exit Velocity (mph)",
+                     limits = c(40, 120)) +
+  scale_y_continuous("Launch angle (degrees)",
+                     breaks = seq(-75, 75, 25)) +
+  theme_dark()
+
+ev_plot_BA
+
+
+# Increased BA ranges from 60 mph EV  to 120 mph. Launch angle for strong contact is at 15 to 35 degrees approximately. Overall, lower BA's are found to be consistent with negative launch angles and launch angles exceeding 50 degrees. All in all, stronger contact appears to be correlating to better BA's.
+```
+
+```{r}
+# Question 3 - Creating BA Matrix for Righty/Lefty (Multiple Graphs)
+ev_plot_BA +
+  facet_grid(p_throws ~ stand)
+```
+
+```{r}
+# Question 2 Cont - Creating Guidelines and Predicting BA and wOBA (wOBA) (Singular Graph)
+guidelines_wOBA <- tibble(
+  launch_angle = c(10, 25, 50),
+  launch_speed = 40,
+  label = c("Ground Balls", "Line drives", "Flyballs")
+)
+
+ev_plot_wOBA <- sc_bips %>%
+  # for speed
+  sample_n(nrow(.) / 2) %>%
+  ggplot(aes(x = launch_speed, y = launch_angle,
+             color = estimated_woba_using_speedangle)) +
+  geom_point(alpha = 0.05) +
+  geom_hline(data = guidelines_wOBA, aes(yintercept = launch_angle),
+             color = "black", linetype = 2) +
+  geom_text(data = guidelines_wOBA,
+            aes(label = label, y = launch_angle - 4),
+            color = "black", hjust = "left") +
+  scale_color_gradient2("wOBA", low = "blue", mid = "white", high = "red", midpoint = 0.5) +
+  scale_x_continuous("Exit Velocity (mph)",
+                     limits = c(40, 120)) +
+  scale_y_continuous("Launch Angle (degrees)",
+                     breaks = seq(-75, 75, 25)) +
+  theme_dark()
+
+ev_plot_wOBA
+
+# Increased wOBA ranges from 60 mph to 120 mph. Launch angle is consistent in determining that 15 to 35 degree launch angle produced significantly higher wOBA's, which is also consistent with the increases seen in batting average statistics. All in all, stronger contact at the given thresholds provide more offensive value for the batters and their teams.
+```
+
+```{r}
+# Question 3 - Creating wOBA Matrix for Righty/Lefty (Multiple Graphs)
+ev_plot_wOBA +
+  facet_grid(p_throws ~ stand)
+```
+
+```{r}
+# Question 4 - Result Discussion (Difference between predicted BA and wOBA graphs, meaning, and difference between handedness)
+
+# Initial observations for the wOBA matrix shows that the hot zones, regardless of handedness, remain relatively clustered around the same area for increased wOBA's. The data shows the higher wOBA's are clustered around the 10 - 25 degree launch angle, which classifies as a line drive. There is also a solid cluster above the 25 degree launch angle that can classify as a deep fly ball. Per Rapsodo's Hitting Certification:
+
+# Low line drives are between 6 - 15 degrees, high line drives between 15 - 24 degrees, and fly balls are anywhere between 24 and 50 degrees. The idea that heavily increased wOBA is clustered around 100 mph EV and 15 - 35 degree launch angle backs up these classifications significantly. These clusters for each platoon shows that the classifiers of desired hit outcomes are accurate and that the batter ultimately increase their wOBA. Since these classifiers are more likely to generate scoring opportunities (the better the ball is struck, the more likely it is to improve wOBA).
+
+# Initial observations for the BA matrix show that the hot zones, regardless of handedness, remain relatively clustered around the same area for increased BA's. The streak of red (higher Batting Averages) runs between the 10 - 25 degree launch angle, classifying as a line drive which also ranges from 60 to 120 mph EV. There really isn't a widely noticeable difference between the platoon pair. The streak of higher BA's are less visible for L-L platoons, but still remain consistent with the remaining pairs in terms of seeing increases as LA remains at line drive / deep fly ball thresholds and as EV increases.
+
+
+# For all handedness for both BA and wOBA matrices, there are no noticeable differences in platoons. The clusters all remain generally in the same area, which can show that significantly increased BA's and wOBA's are supported by increased EV with a launch angle between 15-35 degrees for optimal value. This doesn't necessarily mean lower EV's and lower launch angle's cant produce run value or base hits, but generally batters want to strike the ball much harder at the previously mentioned thresholds.
+
+#Source: Rapsodo 2025 Baseball Hitting Certification (Dervishaj, Benett)
+```
+
