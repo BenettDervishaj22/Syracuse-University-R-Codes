@@ -1,0 +1,49 @@
+---
+title: 'Week 7 Assignment: Creating New Basketball Roles using Hierarchical Clustering'
+output: html_document
+date: "2025-10-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Question 1 and 2 - Install BasketballAnalyzeR and Loading Tidyverse and BasketballAnalyzeR
+library(tidyverse)
+library(BasketballAnalyzeR)
+```
+
+```{r}
+# Question 3 - Pbox and Data
+Pbox %>% mutate(
+  FGM = P2M + P3M,
+  FGA = P2A + P3A,
+  REB = OREB + DREB,
+  eFG = (FGM + 0.5 * P3M) / FGA) -> Pbox
+
+Pbox %>% filter(MIN>=1500) %>% transmute(PTS, eFG, P3M, FTM, AST, REB) -> data
+Pbox %>% filter(MIN>=1500) %>% pull(Player) -> ID
+```
+
+```{r}
+# Question 4 - First Step of Hierarchical Clustering
+hclu1 <- hclustering(data)
+plot(hclu1)
+```
+
+```{r}
+# Question 5 - Second Step of Hierarchical Clustering
+hclu2 <- hclustering(data, labels = ID, k=8)
+plot(hclu2, profiles = TRUE)
+```
+
+```{r}
+# Question 6 - On Word Doc
+```
+
+```{r}
+# Question 7 - Cluster Tree
+plot(hclu2, rect=FALSE, colored.branches = TRUE, cex.labels = 0.5)
+```
+

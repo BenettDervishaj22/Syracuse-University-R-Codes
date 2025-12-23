@@ -1,0 +1,96 @@
+---
+title: "Week 7 Lab Clustering of Teams"
+output: html_document
+date: "2025-10-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(BasketballAnalyzeR)
+```
+
+```{r}
+FF <- fourfactors(Tbox,Obox)
+FF %>% transmute(OD.Rtg = ORtg/DRtg,
+                 F1.r = F1.Off/F1.Def,
+                 F2.r = F2.Def/F2.Off,
+                 F3.Off, F3.Def, P3M=Tbox$P3M,
+                 STL.r = Tbox$STL/Obox$STL) -> data
+```
+
+```{r}
+kclustering(
+  data,
+  k = NULL,
+  labels = NULL,
+  nclumax = 10,
+  nruns = 10,
+  iter.max = 50,
+  algorithm = "Hartigan-Wong"
+)
+
+set.seed(123)
+kclu1 <- kclustering(data)
+plot(kclu1)
+```
+
+```{r}
+set.seed(123)
+kclu2 <- kclustering(data, labels = Tbox$Team, k=5)
+plot(kclu2)
+```
+
+```{r}
+FF %>% inner_join(kclu2$Subjects, by = c("Team"="Label")) %>%
+  inner_join(Tbox, by = "Team") %>%
+  inner_join(Obox, by = "Team", suffix=c("",".Opp")) %>%
+  mutate(Cluster = as.factor(Cluster)) -> FF
+
+bubbleplot(FF, id="Team", x="PTS", y="PTS.Opp", col="Cluster", size="W",
+           labels =c("PTS", "PTS.Opp", "Cluster", "Wins"))
+```
+
+## LAB
+
+```{r}
+FF2 <- fourfactors(Tbox,Obox)
+FF2 %>% transmute(OD.Rtg = ORtg/DRtg,
+                 F1.r = F1.Off/F1.Def,
+                 F2.r = F2.Def/F2.Off,
+                 F3.Off, F3.Def, P3M=Tbox$P3M,
+                 OReb.r = Tbox$OREB / Obox$OREB,
+                 TOV.r = Tbox$TOV / Obox$TOV
+                 ) -> datarate
+```
+
+
+```{r}
+kclustering(
+  datarate,
+  k = NULL,
+  labels = NULL,
+  nclumax = 10,
+  nruns = 10,
+  iter.max = 50,
+  algorithm = "Hartigan-Wong"
+)
+```
+
+```{r}
+set.seed(123)
+KCLU_RATINGS <- kclustering(datarate)
+plot(KCLU_RATINGS)
+```
+
+```{r}
+set.seed(123)
+kclu_rate <- kclustering(datarate, labels = Tbox$Team, k = 5)
+plot(kclu_rate)
+```
+
+```
+
