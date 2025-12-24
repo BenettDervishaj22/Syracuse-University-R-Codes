@@ -3,6 +3,8 @@ This repository contains all coding done using R for the Syracuse University Spo
 
 # SAL 602 - R For Sport Analytics I
 
+# SAL 604 - Econometrics Sport Analytics
+
 # SAL 605 - R For Sport Analytics II
 
 # SAL 608 - Machine Learning Using R
