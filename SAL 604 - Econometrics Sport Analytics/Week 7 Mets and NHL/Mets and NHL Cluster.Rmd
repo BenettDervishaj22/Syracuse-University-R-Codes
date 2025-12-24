@@ -1,0 +1,192 @@
+---
+title: "Mets and NHL Cluster"
+output: html_document
+date: "2025-04-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(tseries)
+library(foreign)
+library(urca)
+library(car)
+library(rpart)
+library(rpart.plot)
+library(lmtest)
+library(sandwich)
+library(dynlm)
+library(factoextra)
+```
+
+```{r}
+mets <- read.csv("Mets_Dynamic.csv")
+```
+
+```{r}
+# Mets Model
+model1 <- lm(aveprice ~ Sun+Mon+Tue+Thu+Fri+Sat+Apr+May+July+Aug+Sept+winpct+vwp+Windspeed+Temp+aft+earlyeve+opday+div+int,data = mets)
+summary(model1)
+
+# Overall, the model as a whole is significant at the 1%  level. The most significant variables in this model are Tuesday (10% level), Friday (1% level), Saturday (1% level), May (10% level), Temperature (5% level), Opening Day (1% level), and inter league games (1% level). We reject the null hypothesis based on this initial regression test.
+
+# Coefficients
+# Tuesday: Games on Tuesdays seem to decrease the average price by $9.9374.
+# Friday: Games on Fridays seem to increase the average price by $25.3813.
+# Saturday: Games on Saturdays seem to increase the average price by $21.6470.
+# May: Games in May seem to decrease the average  price by $12.1717.
+# Temperature: Higher temperature games tend to increase the average price by $0.6970.
+# Opening Day: Opening Day game significantly increases the average price by $77.3265.
+# Inter-league Games: Inter-league games increases the average price by $22.7254.
+```
+
+```{r}
+# Model with CHC, NYY, PHI Variables
+model2 <- lm(aveprice ~ Sun+Mon+Tue+Thu+Fri+Sat+Apr+May+July+Aug+Sept+winpct+vwp+Windspeed+Temp+aft+earlyeve+opday+div+int+chc+nyy+phi,data = mets)
+summary(model2)
+
+# Overall, the model as a whole is significant at the 1% level. The most significant variables in this model are: Tuesday (10% level), Friday (1% level), Saturday (1% level), Temperature (1% level), Opening Day (1% level), and the New York Yankees dummy variable (10% level). We reject the null hypothesis based on this initial regression test.
+
+# Coefficients
+# Tuesday: Games on Tuesdays tend to decrease the average price by $10.0997.
+# Friday: Games on Fridays tend to increase the average price by $22.7452.
+# Saturday: Games on Saturdays tend to increase the average price by $17.7341.
+# May: Games in May tend to decrease the average price by $12.6307.
+# Temperature: Higher temperature games tend to increase the average price by $0.8026.
+# Opening Day: Opening Day game significantly increases the average price by $78.2666
+# NYY: Games against the New York Yankees significantly increases the average price by $22.1945.
+```
+
+```{r}
+# Testing for Multicollinearity
+vif(model2)
+
+# Variables that exhibit Multicollinearity: Win Pct and VWP both exceed the value of 5, therefore we need to remove them from this model and re-run the new regression to see any potential changes to the significance.
+
+Model2_Revised <- lm(aveprice ~ Sun+Mon+Tue+Thu+Fri+Sat+Apr+May+July+Aug+Sept+Windspeed+Temp+aft+earlyeve+opday+div+int+chc+nyy+phi,data = mets)
+summary(Model2_Revised)
+
+# Overall, the model as a whole is significant at the 1% level. The most significant variables in this model are Friday (1% level), Saturday (1% level), May (10% level), Temperature (1% level), Opening Day (1% level), and NYY (10% level).
+
+# Coefficients
+# Friday: Games on Fridays increase the average price by $24.08398.
+# Saturday: Games on Saturdays increase the average price by $18.54739.
+# May: Games in May decrease the average price by $11.01385.
+# Temperature: Higher temperature games increase the average price by $0.82710.
+# Opening Day: Opening Day game significantly increases the average price by $74.81431.
+# NYY: Games against the New York Yankees increases the average price by $21.38664.
+
+# Durbin-Watson Test
+dwtest(Model2_Revised)
+
+# The DW value of 1.845 is quite close to 2, which would be considered a non-issue. This could be slightly positive autocorrelation, since the value is under less than 2. However since it is below 2, we can correct for autocorrelation.
+
+# Newey-West Standard Errors
+coeftest(Model2_Revised, vcovHAC)
+
+# Results
+# The significant variables are now Friday (1% level), Saturday (1% level), May (5% level), Sept (10% level), Temperature (10% level), and Opening DAY (1% level). This is different from the previous 2 models, which indicates that correcting for autocorrelation, multicollinearity, and heteroskedasticity has changed the output of the model, somewhat significantly.
+
+# Coefficients
+# Friday: Games on Fridays increase the average price by $24.083984.
+# Saturday: Games on Saturdays increase the average price by $18.547394.
+# May: Games in May decrease the average price by $11.013849.
+# Sept: Games in September decrease the average price by $9.395335.
+# Temperature: Higher temperature games increase the average price by $0.827101.
+# Opening Day: Opening Day game significantly increases the average price by $74.814310.
+```
+
+```{r}
+# NHL Cluster
+nhl <- read.csv("SkaterOnIceSalary.csv")
+```
+
+```{r}
+nhl %>%
+  select(Salary,TOI,CFpct,FFpct) %>%
+  summary()
+
+nhl_scaled <- nhl %>%
+  select(Salary,TOI,CFpct,FFpct) %>%
+  scale()
+nhl_scaled %>%
+  summary()
+
+set.seed(1234)
+k_3 <- kmeans(nhl_scaled, centers=3, nstart=20)
+k_3$centers
+
+fviz_cluster(k_3, data = nhl_scaled)
+
+nhl %>% mutate(cluster = k_3$cluster) %>%
+  select(cluster, Salary, TOI, CFpct, FFpct) %>%
+  group_by(cluster) %>%
+  summarize_all("mean")
+
+fviz_nbclust(nhl_scaled, kmeans, method="silhouette")
+fviz_nbclust(nhl_scaled, kmeans, method ="wss")
+fviz_nbclust(nhl_scaled, kmeans, method="gap_stat")
+
+# The appropriate number of clusters with this data is likely 3, as silhouette is optimal at 3 clusters. WSS optimal around 3-4 as the "elbow" of the data is decreasing in a linear trajectory around 3-4 clusters. While 1 cluster is optimal according to the gap_stat, but considering 2 of the 3 methods labeled 3-4 optimal, I suggest 3 clusters as ideal.
+
+
+# My Customized NHL Cluster
+
+nhl %>%
+  select(Salary,TOI,CFpct,FFpct,GF) %>%
+  summary()
+
+nhl_scaled2 <- nhl %>%
+  select(Salary,TOI,CFpct,FFpct, GF) %>%
+  scale()
+nhl_scaled2 %>%
+  summary()
+
+set.seed(1234)
+k3 <- kmeans(nhl_scaled2, centers=3, nstart=20)
+k3$centers
+
+fviz_cluster(k3, data = nhl_scaled2)
+
+nhl %>% mutate(cluster = k3$cluster) %>%
+  select(cluster, Salary, TOI, CFpct, FFpct, GF) %>%
+  group_by(cluster) %>%
+  summarize_all("mean")
+
+fviz_nbclust(nhl_scaled2, kmeans, method="silhouette")
+fviz_nbclust(nhl_scaled2, kmeans, method ="wss")
+fviz_nbclust(nhl_scaled2, kmeans, method="gap_stat")
+
+# The appropriate number of clusters with this data is likely 2, as silhouette is optimal at 2 clusters. WSS optimal around 2-3 as well, as the "elbow" of the data is decreasing in a linear trajectory around 2-3 clusters. While 1 cluster is optimal according to gap_stat, but considering 2 of the 3 methods labeled 2-3 as optimal, I suggest 2 is ideal.
+
+# Revised Custom Model - 2 Clusters
+nhl %>%
+  select(Salary,TOI,CFpct,FFpct,GF) %>%
+  summary()
+
+nhl_scaled2 <- nhl %>%
+  select(Salary,TOI,CFpct,FFpct, GF) %>%
+  scale()
+nhl_scaled2 %>%
+  summary()
+
+set.seed(1234)
+k2 <- kmeans(nhl_scaled2, centers=2, nstart=20)
+k2$centers
+
+fviz_cluster(k2, data = nhl_scaled2)
+
+nhl %>% mutate(cluster = k2$cluster) %>%
+  select(cluster, Salary, TOI, CFpct, FFpct, GF) %>%
+  group_by(cluster) %>%
+  summarize_all("mean")
+
+fviz_nbclust(nhl_scaled2, kmeans, method="silhouette")
+fviz_nbclust(nhl_scaled2, kmeans, method ="wss")
+fviz_nbclust(nhl_scaled2, kmeans, method="gap_stat")
+```
+

@@ -1,0 +1,246 @@
+---
+title: "NFL Heteroskedasticity and NBA Naive Bayes"
+output: html_document
+date: "2025-04-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+library(car)
+library(lmtest)
+library(sandwich)
+library(e1071)
+library(dplyr)
+```
+
+
+```{r}
+nfl <- read.csv("NFL_Website.csv")
+```
+
+```{r}
+# 1
+model1 <- lm(rating ~ mov+combsc+thur+mon+oct+nov+dec+late+Division+OT+Penalties+sumwin, data = nfl, na.action = na.exclude)
+summary(model1)
+
+# The model as a whole is statistically significant at the 1% level. In addition, there are several variables that have statistical significance. 
+
+#The variables significant at the 1% level are: mov, combsc, OT, and sumwin. This indicates that these variables are strong predictors of rating in this model. 
+
+# Variables significant at the 5% level: late, and Division. This indicates that these variables are strong predictors of rating in this model, perhaps not as strong as the 1% significance variables, but still a viable predictor nonetheless.
+
+# Analyzing Coefficients
+
+# Mov: For each additional point in margin of victory, the rating is reduced by 0.27822 (negative coefficient)
+# combsc: For each additional point in total score, rating is increased by 0.53694 (positive coefficient)
+# late: Late games improve rating (perhaps America's Game of the Week or primetime games draw more)
+# Division: Division games improve rating, signalling that fans prefer these games more (more important in NFL standings)
+# OT: Games that go to Overtime are rated higher, which makes sense because first touchdown wins, draws more excitement.
+# sumwin: Winning percentage of teams increase rating of game, which makes sense because this would be a highly competitive matchup. For example Eagles vs Ravens in the regular season.
+
+
+# Heteroskedasticity Tests
+bptest(model1)
+bptest(model1, ~fitted(model1) + I(fitted(model1)^2))
+
+# Both tests reveal heteroskedasticity, as both p-values are far lower than the 0.05 threshold. We can reject the null hypothesis of heteroskedasticity. However, we must correct for this using robust standard errors.
+
+# Correcting for Heteroskedasticity
+coeftest(model1, vcov = vcovHC(model1, type = "HC0"))
+
+# Model maintains significance, in addition the OT dummy variable became more significant, moving from the 5% to the 1% level of significance. Coefficients remain relatively the same across all variables.
+```
+
+
+```{r}
+# 1.2
+model2 <- lm(rating ~ line+total+thur+mon+oct+nov+dec+late+Division+OT+Penalties+sumwin, data = nfl, na.action = na.exclude)
+summary(model2)
+
+# The model as a whole is statistically significant at the 1% level. The variables significant at the 1% level are the OT dummy and sumwin. The variables significant at the 10% level are total, Thursday, and late. 
+
+# Analyzing Coefficients
+
+# OT Dummy: Suggests that overtime games improve rating 15.59158 (positive coefficient), this makes sense because OT games tend to draw more fans and there is more excitement around the game.
+# sumwin: The games that involve better teams (higher win percentage combined), increase rating by 15.56734 as a result (positive coefficient). This makes sense because highly skilled teams are more enjoyable to watch, typically for fans.
+
+# total: For every 1 increase in total score, the rating increases by 0.33791, which makes sense because high scoring games are usually entertaining and fun from the fan perspective.
+# Thurs: For every Thursday game, rating decreases by 8.08645, suggesting that Thursday games are less favorable for fans.
+# late: For every late game, rating increases by 3.13071, suggesting that late games are more favorable for fans.
+
+# Heteroskedasticity Tests
+bptest(model2)
+bptest(model2, ~fitted(model2) + I(fitted(model2)^2))
+
+# Heteroskedasticity is in this model as well. Since both p-values from both tests are far below the 0.05 threshold, we reject the null hypothesis. However, we must correct for Heteroskedasticity via robust standard errors.
+
+# Correcting for Heteroskedasticity
+coeftest(model2, vcov = vcovHC(model2, type = "HC0"))
+
+# Model maintains significance, however total projected score and thurs are now insignificant via the t-test of coefficients. 
+```
+
+```{r}
+# 1.3
+model3 <- lm(number ~ mov+combsc+thur+mon+oct+nov+dec+late+Division+OT+Penalties+sumwin, data = nfl, na.action = na.exclude)
+summary(model3)
+
+# The model as a whole is statistically significant at the 1% level. The variables significant at the 1% level are combsc, thur, and sumwin. The variables significant at the 5% level are mov and dec.
+
+# Analyzing Coefficients
+
+# combsc: The number of website visitors increases as combined score of games increases (perhaps to watch highlights or recaps of the game)
+# thur: The number of website visitors increases on Thursdays, perhaps because there is usually only 1 game on Thursdays (or Thanksgiving could be affecting this).
+# sumwin: The number of website visitors greatly increases by 2201.913 as sum win increases (competitive teams draw more viewership)
+# mov: The number of website visitors decreases as margin of victory increases, which means people tend to not check the website for the score. Perhaps because lopsided games are not desirable or enjoyable for the fans.
+# dec: The number of website visitors decreases in December, perhaps because many teams are out of the playoffs by now and the majority of teams typically dont make the playoffs. This variable likely requires more analysis to figure out truly why website visitors decrease.
+
+# Heteroskedasticity Tests
+bptest(model3)
+bptest(model3, ~fitted(model3) + I(fitted(model3)^2))
+
+# BP Test shows high p-value, thus we fail to reject the null hypothesis. The White test signals that the p-value is far below the 0.05 threshold.
+
+# Correcting for Heteroskedasticity
+coeftest(model3, vcov = vcovHC(model3, type = "HC0"))
+
+# Model maintains significance. However, mov has now become significant at the 10% level, somewhat decreasing in significance compared to the initial regression model. In addition, Thurs has now become more significant, going from 1% to the 0.001% level. All other variables maintain the same level of significance after the t-test of coefficients.
+```
+
+```{r}
+# 2 NFL FAN DUEL
+nflfd_data <- read.csv("NFL_FD.csv")
+```
+
+```{r}
+# 2
+model4 <- lm(FD.points ~ FD.salary+Pos+h.a+Oppt, data = nflfd_data)
+summary(model4)
+
+# The model as a whole is statistically significant at the 1% level. FD.salary, QB, RB, TE, and WR are all significant at the 1% level. Indicating they are significant predictors of Fan Duel points in this model.
+
+# Analyzing Coefficients
+#FD.Salary indicates for every 1 dollar, FD points will increase by 0.004. 
+
+#QB,RB,TE,WR variables all have negative coefficients. This means that these positions likely score less points when salary is constant.
+
+
+# Heteroskedasticity Tests
+bptest(model4)
+bptest(model4, ~fitted(model4) + I(fitted(model4)^2))
+
+# Heteroskedasticity tests determine that the model has signfiicant p-values way under the 0.05 threshold, implying that there is heteroskedasticity in this model. We reject the null hypothesis of heteroskedasticity.
+
+# Correcting for Heteroskedasticity
+coeftest(model4, vcov = vcovHC(model4, type = "HC0"))
+
+# After correcting for heteroskedasticity, all the initial variables remain highly significant. However, there are two more variables. Detroit is significant at the 5% level, while Houston is significant at the 10% level. This means that when players played against these two teams, they tend to score more FD points.
+
+```
+
+```{r}
+# 2.1 Subset Data
+nfl_pos <- subset(nflfd_data, FD.points > 0)
+
+model5 <- lm(FD.points ~ FD.salary+Pos+h.a+Oppt, data = nfl_pos)
+summary(model5)
+
+# Heteroskedasticity Tests
+bptest(model5)
+bptest(model5, ~ FD.salary+Pos+h.a+Oppt+I(FD.salary^2), data = nfl_pos)
+
+# Correcting for Heteroskedasticity
+coeftest(model5, vcov = vcovHC(model5, type = "HC0"))
+
+# Initial model remains the same in the subset as it was in the initial model. After confirming the model still contains heteroskedasticity, we correct for it by using robust standard errors.
+
+# After conducting the t-tests, the significance levels have greatly changed in the model. The model contains highly significant teams, which indicate that scoring varies greatly across each team, this also means that players tend to score more against these teams compared to others, given the positive coefficients.
+
+# Analyzing Coefficients
+
+# Teams significant the 1% level:
+# Detroit
+# Houston
+# Cincinnati
+# Cleveland
+# Jacksonville
+# Minnesota
+# New York Jets
+# Philadelphia
+# Atlanta
+# Seattle
+# Indianapolis
+# Kansas City
+# Los Angeles Chargers
+# Dallas
+# Las Vegas
+# Buffalo
+# Chicago
+# New England
+# Carolina
+# Arizona
+# Denver
+# Miami
+# Baltimore
+# New York Giants
+
+# Teams significant at the 5% level:
+# Green Bay
+# Pittsburgh
+
+# Teams significant at the 10% level:
+# San Francisco
+# Tampa Bay
+# Washington
+```
+
+```{r}
+# 3
+nba_data <- read.csv("NBA_Stats_Salary_4_2_23.csv")
+```
+
+```{r}
+# 3
+set.seed(1234)
+nba_data$Pos <- as.factor(nba_data$Pos)
+sample_index <- sample(nrow(nba_data), round(nrow(nba_data)*.75), replace = FALSE)
+nba_data_train <- nba_data[sample_index, ]
+nba_data_test <- nba_data[-sample_index, ]
+
+nba_data_mod <- naiveBayes(Pos ~ ., data = nba_data_train, laplace = 1)
+nba_data_mod
+
+nba_data_pred <- predict(nba_data_mod, nba_data_test, type = "class")
+nba_data_predtable <- table(nba_data_test$Pos, nba_data_pred)
+nba_data_predtable
+
+sum(diag(nba_data_predtable)/ nrow(nba_data_test))
+
+# The Naive Bayes prediction was very similar to the KNN test conducted. The total in each line of the table was quite similar to the KNN results. Each prediction in the reference table was very similar, almost identical for some positions.
+
+# If we look at the each position line across in both the Naive Bayes and KNN table:
+
+#NB: 110, 54, 2, 3 ,3 (CENTER COLUMN)
+#KNN: 112, 41, 1, 9, 2
+
+#NB: 48, 90, 2, 17, 4 (POWER FORWARD COLUMN)
+#KNN: 41, 111, 3, 24, 8 
+
+#NB: 2, 2, 94, 13, 67 (POINT GUARD COLUMN)
+#KNN: 1, 4, 137, 8, 32
+
+#NB: 3, 17, 13, 65, 75 (SMALL FORWARD COLUMN)
+#KNN: 9, 37, 9, 85, 40
+
+#NB: 3, 4 , 32, 22, 156 (SHOOTING GUARD COLUMN)
+#KNN: 2, 20 , 28, 54, 135 
+
+#Note: These values are organized by the rows (C,PF,PG,SF,SG)
+
+# There are some outliers, as KNN had the Point Guard value at 137 for PG row-PG column, at 137. While Naive Bayes was at 94. There are definitely some noticeable differences in both tables, but they maintain relatively similar and close when viewing the data.
+```
+

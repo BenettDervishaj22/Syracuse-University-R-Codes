@@ -1,0 +1,91 @@
+---
+title: "Module 2 Assignment NFL and USHL"
+output: html_document
+date: "2025-03-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Reading NFL Betting Data
+nfl_betting <- read.csv("NFL_Betting.csv")
+nfl_betting
+```
+
+```{r}
+#1.1 HomePercBets on absspread and road favorite
+model1 <- lm(HomePercOfBets ~ absspread + roadfav, data = nfl_betting)
+summary(model1)
+
+#1.2 Interpretation of Results
+# The percentage of bets on the home team is not independent of the point spread, which refutes the balanced book hypothesis.
+# The road favorite is negative, therefore this means that the more that people bet on the road team (because they are the favorite), the less the home team shares on the bets.
+```
+
+```{r}
+#1.3 Bets on absspread and roadfav
+model2 <- lm(Bets ~ absspread + roadfav, data = nfl_betting)
+summary(model2)
+
+#1.4 Interpretation of Results
+## Since abs spread is at -3658, the regression suggests that betting volume decreases as point spread increases. This makes sense because if bettors notice this, it will make them not want to bet at all. There is always a reason why the spread changes.
+### The road favorite coefficient is at -11,468, but since the p-value is at 0.2174, this means it does not have as much of an effect on the bets. The p-value indicates probability, so there is a low probability of the road favorite affecting total bets.
+```
+
+```{r}
+# 1.5 Dummy Variables
+model3 <- lm(Bets ~ absspread + roadfav + HomeTeam + AwayTeam, data = nfl_betting)
+summary(model3)
+
+#1.6 Interpretation of Results
+## The addition of team dummies shows the affect on betting volume. Some teams have seen significant reductions in betting volume as the home team.
+### abs spread saw a significant effect after including team home and away factors as a result of the increasingly negative coefficient. The road favorite saw an increase in the coefficient (still negative), but still might not be as significant as initially thought. This means the regression suggests betting volume isn't influenced one way or another by road favorites.
+```
+
+```{r}
+#2 Reading USHL Data
+ushl_weather <- read.csv("USHL_Weather.csv")
+ushl_weather
+```
+
+```{r}
+#2.1 Crowd and Temperature Regression
+modelA <- lm(Crowd ~ temp + hum + wind + precip, data = ushl_weather)
+summary(modelA)
+
+#2.2 Interpretation of Results
+# Temperature significantly affects attendance, as the -9.96 coefficient indicates that for every 1 degree increase, the attendance will go down by approximately 9.96 people
+# For every 1 percent increase in humidity, attendance increases by approximately 8.327 people.
+# For every 1 percent increase in wind speed, attendance will decrease by approximately 11.751 people.
+# For every 1 percent increase in precipitation, there is an expected decrease of 482.342 people.
+
+# Humidity is the only positive coefficient.
+```
+
+```{r}
+#2.3 Controlling for Home Team
+modelB <- lm(Crowd ~ temp + hum + wind + precip + Home, data = ushl_weather)
+summary(modelB)
+
+#2.3 Interpretation of Results
+## The r-squared values changed, which increased from the previous model. Wind speed remains the most significant affecting variable in correlation with attendance.
+### The home team shows the variance in attendance throughout the different locations.
+```
+
+```{r}
+#2.4 Opponent and Attendance
+modelC <- lm(Crowd ~ temp + hum + wind + precip + Home + Visiting, data = ushl_weather)
+summary(modelC)
+
+#2.4 Interpretation of Results
+## The multiple r-squared values increased after including visiting team data, but attendance is not significantly impacted by the visiting team compared to the home team.
+### Some teams impact attendance significantly more than others.
+```
+
+```{r}
+# 2.5 Sales Predictions
+## You can use these values as information for sales for each game, but this is likely not all you will need to make those decisions. These home team stats do not include possible geographical limitations that hinder fan attendance. Although there are temperature impacts, visiting teams do not necessarily have a significant impact on the total fans who attend the game. All in all, these models can be helpful at creating match ups around times of the season (colder months, warmer months), perhaps scheduling can be influenced in order to maximize attendance.
+```
+

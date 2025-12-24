@@ -1,0 +1,169 @@
+---
+title: "MILB and NBA Assignment"
+output: html_document
+date: "2025-03-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+# Reading the Data
+milb <- read.csv("Minor_League_Baseball_Team.csv")
+milb
+```
+
+```{r}
+# 1.1 Regression Model
+model1 <- lm(turnstile ~ sun+mon+tue+thu+fri+sat+apr+may+july+aug+winpct+temp+opday+merch+food+fireworks+early+mid, data = milb)
+summary(model1)
+
+#1.2 Interpretation of Results
+## After running the regression, the model appears to be significant at the 1% level. This implies that there is very strong basis here for us to reject the null hypothesis.
+
+## The most statistically significant predictor is August, with the p-value being significant at the 1% level. In addition, fireworks was secondary to August (perhaps fireworks night(s) was in August), as it was statistically significant p-value in this model  at the 5% level. This model suggests that August and Fireworks are strong predictors of turnstile (attendance).
+
+## In addition, the August coefficient of 1626 represents the total increase in fans per game in August, and that fireworks attract about 997 more fans per game. Lastly, noting that July and Opening Day are significant at the 10% level.
+
+```
+
+```{r}
+#1.3 Dependent Variable = Paid Attendance 
+model2 <- lm(paid ~ sun+mon+tue+thu+fri+sat+apr+may+july+aug+winpct+temp+opday+merch+food+fireworks+early+mid, data = milb)
+summary(model2)
+
+# Interpretation of Results
+## After running the regression with paid attendance, the model appears to be significant as a whole, as the p-value is significant at the 1% level.
+
+## The similarities from model 1 are that fireworks remains a significant predictor of attendance in general. Yet this time, fireworks seems to be a VERY significant predictor of paid attendance. Temperature is significant at the 5% level. While fireworks and Opening Day are significant at the 1% level.
+
+# According to the coefficient for each variable: Temperature, the paid attendance increases by 16 fans as temperature increases. According to the coefficient for Opening Day, 3130 more fans attend the game via paid entry. For Fireworks events, 1200 more fans attend games via paid entry.
+
+```
+
+```{r}
+#1.4 Dependent Variable = nonpaid (free entry)
+model3 <- lm(nonpaid~ sun+mon+tue+thu+fri+sat+apr+may+july+aug+winpct+temp+opday+merch+food+fireworks+early+mid, data = milb)
+summary(model3)
+
+#Interpretation of Results
+## After running the regression with non-paid attendance, the model appears to be significant at the 1% level. However, the only statistically significant predictor appears to be August. In addition, July and mid are significant at the 10% level, but not as significant of a predictor as August, which is at the 1% level.
+
+### The difference between paid and non-paid attendance is that there seems to be different predictors for both. Paid attendance seemed to be predicted by fireworks, temperature, and opening day. While unpaid attendance seems to be affected by the month of August only. There likely needs to be more analysis in order to find out if other variables affect non-paid attendance.
+
+# The coefficient for August implies that non-paid attendance will increase by 1283 people as a result. While the model assumes that non paid attendance will increase by 564 people in July, and that mid will decrease non-paid attendance by 658 people.
+```
+
+```{r}
+#1.5 Dependent Variable = percap (per capita expenditure on concessions)
+model4 <- lm(percap ~ sun+mon+tue+thu+fri+sat+apr+may+july+aug+winpct+temp+opday+merch+food+fireworks+early+mid, data = milb)
+summary(model4)
+
+#Interpretation of Results
+## After running the regression with percap, the model appears to be significant at 5% level. 
+
+#The statistical predictors of concession sales seem to be July, August, Temperature. July is at the 1% level, while Temperature and August is significant at the 5% level, The difference between this model and the previous is that this model contains negative estimates that are associated with significant p-values. The negative estimates indicate negative impact for that specific predictor.
+
+## For July, the estimate is at -2.59372, indicating that July has a strong negative impact on concessions. August, being the 2nd highest p-value, has an estimate of -1.58814, showing a negative impact on concessions. These negative impacts imply that percap decreases by that amount in those months. Temperature's estimate of 0.06709 shows a positive impact, meaning temperature increase equals more concession sales according to the model.
+```
+
+```{r}
+#1.6 Independent Variable = nonpaidratio
+model5 <- lm(percap ~ sun+mon+tue+thu+fri+sat+apr+may+july+aug+winpct+temp+opday+merch+food+fireworks+early+mid+nonpaidratio, data = milb)
+
+summary(model5)
+
+
+# Interpretation of Results (#Do Fans that gain free entry lead to a higher amount spend on concessions?)
+## The model as a whole is significant at the 5% level, while July and Temperature are significant at the 1% level. In addition, August is significant at the 5% level.
+
+## What is visible is the significance of July, Temperature, and August in this model. July and August have negative coefficients, indicating that these two months decrease percap spend. Temperature has a positive coefficient, which means that temperature increase is correlated to per cap spend increase.
+```
+
+```{r}
+#2 NBA Data
+nba <- read.csv("NBA_Stats_Salary.csv")
+nba
+```
+
+```{r}
+#2.1 WS.48 as DV, Age and Age^2 as IV
+nba$Age_squared <- nba$Age^2
+
+nbamodel <- lm(WS.48 ~ Age + Age_squared, data = nba)
+summary(nbamodel)
+
+# Interpretation of Results
+## This model is statistically significant at the 1% level in correlation to WS.48. Age and Age_Squared are significant predictors for win shares over 48 minutes. The age variable has a positive coefficient, indicating that as age increases, the win shares per 48 mins will increase as well. These three variables are significant at the 1% level.
+
+## Since we have the Age_squared variable as well, this means that the relationship between WS.48 and Age will decrease after having increased previously. The negative coefficient implies that there will be a decrease of Win shares as the player reaches a certain age (need to do more analysis to figure out).
+```
+
+```{r}
+# 2.2 Visualization
+ggplot(nbamodel, aes(x=Age, y= WS.48))+
+  geom_point()+
+  stat_smooth(method = "loess")+
+  labs(title = "Age and Win Share per 48 mins", x = "Age", y = "WS.48")
+```
+
+```{r}
+# 2.3 Restrict Sample
+positions <- c("PG","SG","SF","PF","C")
+nba <- nba %>% filter(Pos %in% positions)
+
+Center <- subset(nba, positions == "C")
+center_model <- lm(WS.48 ~ Age + Age_squared, data = Center)
+summary(center_model)
+
+PG <- subset(nba, positions == "PG")
+PG_model <- lm(WS.48 ~ Age + Age_squared, data = PG)
+summary(PG_model)
+
+# 2.4 Visualization
+ggplot(Center, aes(x=Age, y = WS.48))+
+  geom_point()+
+  stat_smooth(method = "loess")+
+  labs(title = "NBA Centers Age and Win Share per 48 minutes", x = "Age", y = "WS.48")
+
+ggplot(PG, aes (x = Age, y= WS.48))+
+  geom_point()+
+  stat_smooth(method = "loess")+
+  labs(title = "NBA Point Guards Age and Win Share per 48 minutes", x = "Age", y = "WS.48")
+
+# Graph seems to show that lot of centers aged 20-30 have better win-shares than those who are between ages 30-40 for this data. In addition, line stays relatively linear compared to the data of Point Guards. Point Guard trajectory declines at around 33-35 years old. As a result, win share per 48 mins decreases as well. Centers maintain similar win share per 48 mins, with a steady decline.
+
+# Both models significant at the 1% level. In addition to all variables in both models being significant at the 1% level.
+```
+```{r}
+# 2.5 Using Cap Hit and Creating Cap Hit Squared
+nba$Caphit_squared <- nba$Cap.Hit^2
+
+nbacapmodel <- lm(WS.48 ~ Cap.Hit + Caphit_squared, data = nba)
+summary(nbacapmodel)
+
+# Interpretation of Results
+
+## All of the coefficients are significant at the 1% level. This means cap hit and cap hit squared are statistically significant in this model, and that they have an impact on Win Share per 48 minutes. The positive coefficient for Cap.Hit implies that players with higher cap hits have stronger win shares, but the negative coefficient for cap hit squared implies that at some point there will be a decrease in win share at some specific salary.
+
+ggplot(nbacapmodel, aes(x = Cap.Hit, y = WS.48))+
+  geom_point()+
+  stat_smooth(method = "loess")+
+  labs(title = "NBA Cap Hit and Win Share per 48 Minutes", x = "Cap Hit", y = "WS.48")
+```
+```{r}
+# Stat Selection - Salary and Games
+nbasalary <- lm(Salary ~ Age + Age_squared, data = nba)
+summary(nbasalary)
+
+# Interpretation of Results
+
+## The amount of games played and the Win Share per 48 minutes are statistically significant in this model. The model is significant at the 1% level, in addition to all variables (Age and Age_squared being at the 1% level of significance) and can be accurate predictors of player salary. This makes sense, as typically players make less as they age, because performance decreases. The coefficients represent the salary increase or decrease a player will see. At a certain age, player salary will decrease by $67,590 as shown by the age squared metric.
+```
+

@@ -1,0 +1,99 @@
+---
+title: "NCAA Logit and Mets Decision Tree"
+output: html_document
+date: "2025-05-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(tseries)
+library(foreign)
+library(urca)
+library(car)
+library(rpart)
+library(rpart.plot)
+library(lmtest)
+library(sandwich)
+library(caret)
+```
+
+```{r}
+ncaa <- read.csv("NCAA_football_coaches.csv")
+```
+
+```{r}
+# Logit Model 1
+logit <- glm(cochange ~ wpct + gamesc + wpctsc + gameca, data = ncaa, family = binomial(link = logit))
+summary(logit)
+
+# Variables significant at the 1% level are win percentage, total games coached at current school. Variables significant at the 5% level are winning percentage at current school, and games coached at current school.
+
+# Coefficients
+
+# The higher the most recent season winning percentage, the likeliness of a coaching change decreases. For each 1 percent increase in winning percentage, the odds of a coaching change decrease by -2.709194 units.
+
+# The coaches who coach more games at their current school are somewhat likely to experience a coaching change. For each game coached, the odds of a coaching change increase by 0.006110 units, which is a very minimal increase.
+
+# The higher the winning percentage at the current school, the higher chance there will be a coaching change. For each 1 percent increase in winning percentage, the odds of a coaching change increase by 0.878220 units. This could be due to the drastic success that a coach has, which entices them to other opportunities. For example, Mike Sullivan to the New York Rangers, despite being one of the longest tenured coaches in the NHL, with a high win percentage, seems as though he could be the New York Rangers next coach, per the NHL rumor mill.
+
+# The more games coached, the less chance of a coaching change. For every game coached, the odds of a coaching change decrease by -0.002756 units, which could be due to the fact that seniority is respected for the head coach position. There needs to be some additional research here to really see the correlation.
+```
+
+```{r}
+# Logit Model 2
+logit2 <- glm(cochange ~ PF + PA + pfsc + pasc, data = ncaa, family = binomial(link = logit))
+summary(logit2)
+
+# Variables significant at the 1% level are Points For, Points For at Current School, and Points Against at Current school. The insignificant variable is points allowed.
+
+# Coefficients
+
+# The coaches who score more are less likely to be replaced. As for every 1 point scored, the odds of a coaching change decrease.
+
+# The coaches who score more at the current school are less likely to be replaced. As for every 1 point scored at the current school, the odds of a coaching change decrease.
+
+# The coaches who allow more points at their current school are more likely to be replaced. As for every 1 point allowed at the current school, the odds of a coaching change significantly increase.
+```
+
+```{r}
+# Probit Model (Logit Model 2 edited)
+probit <- glm(cochange ~ PF + PA + pfsc + pasc, data = ncaa, family = binomial(link = probit))
+summary(probit)
+
+# The significant variables at the 1% level are Points For, Points For at Current School, and Points Against at Current School. The insignificant variable is pointed allowed.
+
+# The coaches who score more are less likely to be replaced. As for every 1 point scored, the odds of a coaching change decrease given the negative coefficient.
+
+# The coaches who score more at the current school are less likely to be replaced. As for every 1 point scored at the current school, the odds of a coaching change decrease, given the negative coefficient.
+
+# The coaches who allow more points at their current school are more likely to be replaced. As for every 1 point allowed at the current school, the odds of a coaching change significantly increase, given the positive coefficient.
+
+# The logit model is likely a better fit than the probit model. Each of the significant variables remain highly significant at the 1% level, indicating no differences aside from the coefficient values. While the coefficients are different values, they maintain the same sign of negative and positive where applicable, and communicate the data very similarly. The Residual deviance is also lower for the logit2 model, indicating the model is a better fit because there is less disparity.
+```
+
+```{r}
+# Mets Dynamic Pricing Decision Tree
+mets <- read.csv("Mets_Dynamic.csv")
+set.seed(1234)
+sample_index <- sample(nrow(mets), round(nrow(mets)*.75), replace = FALSE)
+mets_train <- mets[sample_index, ]
+mets_test <- mets[-sample_index, ]
+
+mets_mod <- rpart(vwp ~., data = mets)
+rpart.plot(mets_mod)
+
+# 100% of the data, 0.52 (52%) is the average opponent win percentage that the Mets faced in this season at home.
+
+# Difference in win percentage that is less than or equal to -0.11 equals 9% of the total data, and the average opponent win percentage is 48% (for all road teams at Citi Field).
+
+# The Away Team is clearly significant in determining opponent win percentage. The Cubs, Rockies, Astros, Marlins, Brewers, and Padres are considered weaker teams in this model, because their average win percentage is 0.39 (39%), these teams account for 31% of the games at Citi Field. The other node indicates other teams, where the vwp is much stronger at 0.53 (53%), which is above average. This occurs for 60% of the games at Citi Field. In addition, if the Mets are considered "Underdogs", their opponents win percentage will be very high at 0.89 (89%). Specific away teams can be weaker opponents, but all in all their competition is above average (60% of data, 53% win percentage of teams other than the previously mentioned CHC, COL, HOU, MIA, MIL, SDP).
+
+# Conclusion
+# The significant predictor of opponent win percentage is the difference in win percentage (diffwp). In addition to this, specific teams can be tougher to face for the Mets at Citi Field.  This can be useful for scouting purposes, or perhaps strategically picking lineups and pitching rotations against the teams that pose the biggest challenge to the team. There likely needs to be some additional research to confirm this, but the decision tree model suggests these ideas. This could be helpful from a business standpoint, perhaps offering promotional giveaways for the tougher opponents to draw more fans in attendance at the game.
+```
+

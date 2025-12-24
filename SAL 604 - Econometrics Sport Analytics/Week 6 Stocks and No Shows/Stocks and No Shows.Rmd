@@ -1,0 +1,143 @@
+---
+title: "Stocks and No Shows"
+output: html_document
+date: "2025-04-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(tseries)
+library(foreign)
+library(urca)
+library(car)
+library(rpart)
+library(rpart.plot)
+library(lmtest)
+library(sandwich)
+```
+
+```{r}
+# Reading Stocks Data
+stocks <- read.csv("stocks.csv")
+```
+
+```{r}
+# Augmented Dickey-Fuller Unit Root Test
+summary(ur.df(stocks$NASDAQ,c("trend"), lags=1))
+
+# The ADF Unit Root Test for NASDAQ concludes a t-statistic of -1.3918, with a 5% critical value of -3.41. Therefore we fail to reject the null hypothesis, which confirms that NASDAQ is non-stationary in this model.
+
+summary(ur.df(stocks$Callaway,c("trend"),lags=1))
+
+# The ADF Unit Root Test for Callaway concludes a t-statistic of -2.2572, with a 5% critical value of -3.41. Therefore, we fail to reject the null hypothesis, which confirms that Callaway is non-stationary in this model.
+
+summary(ur.df(stocks$Caesars,c("trend"),lags=1))
+
+# The ADF Unit Root Test for Caesars concludes a t-statistic of -2.1381, with a 5% critical value of -3.41. Therefore, we fail to reject the null hypothesis, which confirms Caesars is non-stationary in this model.
+```
+
+```{r}
+# Engle-Granger Test
+
+# Model 1
+model1 <- lm(Callaway ~ NASDAQ, data = stocks)
+summary(model1)
+res1 <- residuals(model1)
+
+
+# Residuals 1
+adf.test(res1, k=1)
+summary(ur.df(res1, c("trend"), lags=1))
+
+# No cointegration between Callaway and NASDAQ, as the t-statistic of -2.4151 is not lower than any of the critical values for the test statistics, which also means we fail to reject the null hypothesis of a unit root in the residuals of Callaway-NASDAQ. Residuals are also not stationary.
+```
+
+```{r}
+# Model 2
+model2 <- lm(Caesars ~ NASDAQ, data = stocks)
+summary(model2)
+res2 <- residuals(model2)
+
+# Residuals 2
+adf.test(res2, k=1)
+summary(ur.df(res2, c("trend"),lags=1))
+
+# No cointegration between Caesars and NASDAQ, as the t-statistic of -2.5558 is not lower than any of the critical values for the test statistics. This also means we fail to reject the null hypothesis of a unit root in the residuals of Caesars-NASDAQ. Residuals are also not stationary.
+```
+
+```{r}
+# Model 3
+model3 <- lm(Caesars ~ Callaway, data = stocks)
+summary(model3)
+res3 <- residuals(model3)
+
+# Residuals 3
+adf.test(res3, k=1)
+summary(ur.df(res3, c("trend"), lags=1))
+
+# There is cointegration between Caesars and Callaway, as the t-statistic of -3.7904 is greater than the 10% and 5% critical test statistic values. Therefore, we can reject the null hypothesis of a unit root at the 5% significance level. Residuals are stationary.
+
+# Error Correction Model
+Lag_res <- lag(res3)
+Lag_res <- Lag_res[2:length(Lag_res)]
+ECM <- lm(diff(Caesars) ~ diff(Callaway) + Lag_res, data = stocks)
+summary(ECM)
+
+# Error Correction Model is highly significant at the 1% level. The lagged residual is statistically significant at the 5% level (very close to 1%). The r-squared value of 0.2098 indicates approximately 21% of the variation in Caesars is a result of the change in Callaway and the lagged residual variable.
+```
+
+```{r}
+# 2 Decision Tree Model
+noshow <- read.csv("No_shows.csv")
+set.seed(1234)
+sample_index <- sample(nrow(noshow),round(nrow(noshow)*.75),replace = FALSE)
+noshow_train <- noshow[sample_index, ]
+noshow_test <- noshow[-sample_index, ]
+
+noshow_mod <- rpart(notatt ~., data = noshow)
+
+rpart.plot(noshow_mod)
+
+# The Decision Tree Model indicates that when the win percentage of the team is less than 0.20, 31 percent of the entire observation are labeled as no shows, which would equal 7,648 fans.
+
+# The left side indicates when teams have a win percentage greater than 0.20, this would equal 5047 average no shows, which accounts for 69% of the total observations. When the total score is greater than or equal to 48 points, the no shows decrease significantly to 4,330. Compared to when the total is less than 48 points, the no shows rise to 5,543. This is ONLY for games that have a team with win percentage greater than or equal to 0.20, which is key.
+
+# All in all, this makes sense because fans are usually attracted to matchups that have significant chances of being a high scoring game. In addition, better teams with higher winning percentages generally would mean less no shows. The decision tree model determined that win percentage and total points were effective predictors of no shows, we will see how the regression model is similar or different from this model.
+```
+
+```{r}
+# No Show Regression Model
+ns_lm <- lm(notatt ~ absline + total + temp + hum + precip + wind + thur + mon + sunnight + div + winpct + sep + oct + nov, data = noshow)
+summary(ns_lm)
+
+# Multicollinearity Check
+vif(ns_lm)
+
+# September, October, and November seem to show signs of multicollinearity, as the values exceed 5 for each of these variables.
+
+# New Regression Model (removing September, October, and November)
+
+ns_lm_remodel <- lm(notatt ~ absline + total + temp + hum + precip + wind + thur + mon + sunnight + div + winpct, data = noshow)
+summary(ns_lm_remodel)
+
+# Multicollinearity Check
+vif(ns_lm_remodel)
+
+# All values under 5, model shows no signs of multicollinearity.
+```
+
+```{r}
+# Heteroskedasticity Check
+bptest(ns_lm_remodel)
+bptest(ns_lm_remodel, ~fitted(ns_lm_remodel) + I(fitted(ns_lm_remodel)^2))
+
+# Revised model shows no signs of heteroskedasticity, as both p-values from the tests are much higher than the 0.05 threshold. We fail to reject the null hypothesis heteroskedasticity. Therefore, we do not need to use robust standard errors to correct the model, and we can carry on with the initial model that has no significant signs of multicollinearity.
+
+# This compares to the decision tree model because win percentage remains a highly significant predictor of no show attendance. However, the total isn't as significant of a predictor as the decision tree model anticipates. Since the regression model shows that the total isn't a significant predictor of no show attendance, we can look at the other significant variables. Overall, the model is significant at the 1% level, win pct is significant at the 1% level, and wind is significant at the 10% level. There are no other significant predictors of no show attendance in this model, which shows that the decision tree model may not be as efficient as running a regression model that has reduced multicollinearity, and no signs of heteroskedasticity. All in all, the regression model seems to be effective.
+```
+

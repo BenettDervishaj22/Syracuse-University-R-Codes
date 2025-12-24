@@ -1,0 +1,109 @@
+---
+title: "Module 1 Assignment NBA and NCAA"
+output: html_document
+date: "2025-03-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(knitr)
+library(tidyverse)
+```
+
+
+```{r}
+# Reading NBA Data
+nba_players <- read_csv("NBA_Players.csv")
+```
+
+```{r}
+#1A Summary Statistics for NBA Data
+summary(nba_players)
+```
+
+```{r}
+#1B Regression with Salary and Points
+lm(Salary ~ PTS, data=nba_players)
+NBAmod <- lm(Salary ~ PTS, data = nba_players)
+b1 <- coef(NBAmod)[[1]]
+b2 <- coef(NBAmod)[[2]]
+sNBAmod <- summary(NBAmod)
+print(sNBAmod, signif=F)
+```
+
+```{r}
+#1C Interpreting Results
+# According to the salary coefficient, the negative intercept indicates that when points are at 0, the salary will be -$2,282,281.
+# According to the points coefficient, for each additional point scored, the salary will increase by $1,050,465.
+```
+
+```{r}
+#1D Plotting the Results with a Linear Trend
+par(cex=1.3)
+plot(nba_players$PTS, nba_players$Salary, xlab="Points", ylab="Salary", pch=16)
+abline(b1,b2)
+```
+
+```{r}
+#1E Predicting Salary
+NBAmod <- lm(Salary ~ PTS, data=nba_players)
+newx <- data.frame(PTS = c(10,20,30))
+yhat <- predict(NBAmod, newx)
+names(yhat) <- c("Points= 10", "20","30")
+yhat
+
+# This correlates to the linear regression ran earlier, as for every point your salary will icnrease by $1,050,465. From 10 to 20 points, salary jumps about $10,000,000. The same can be said from 20 to 30 points as well.
+```
+# NCAA
+
+```{r}
+# Read NCAA Data
+ncaa_odds_2024 <- read.csv("NCAAF_Odds_2024.csv")
+```
+
+```{r}
+#2A Linear Regression with Scorediff
+lm(scorediff ~ favline, data=ncaa_odds_2024)
+
+NCAAmod <- lm(scorediff ~ favline, data=ncaa_odds_2024)
+c1 <- coef(NCAAmod)[[1]]
+c2 <- coef(NCAAmod)[[2]]
+sNCAAmod <- summary(NCAAmod)
+print(sNCAAmod, signif=F)
+```
+
+```{r}
+#2B Interpreting Results
+# According to the scorediff coefficient, when score differential is equal to 94.895 points, the line for the favorite is at 0.
+# According to the favline coefficient, for every 1 point, the score differential decreases by 2.458 points.
+```
+
+```{r}
+#2C Plotting Results with Linear Trend
+model1 <- lm(scorediff ~ favline, data = ncaa_odds_2024)
+summary(model1)
+
+p1 <- ggplot(ncaa_odds_2024, aes(x=favline, y=scorediff))
+p1 + geom_point() + stat_smooth(method=lm, se=FALSE)
+```
+
+```{r}
+#2D Linear Regression with Sumscore and Total
+lm(sumscore ~ total, data=ncaa_odds_2024)
+NCAAmod2 <- lm(sumscore ~ total, data = ncaa_odds_2024)
+d1 <- coef(NCAAmod2)[[1]]
+d2 <- coef(NCAAmod2)[[2]]
+sNCAAmod2 <- summary(NCAAmod2)
+print(sNCAAmod2, signif=F)
+```
+
+```{r}
+# Interpreting Results
+# According to the sumscore coefficient, the predicted value of sum score equals 911.45, when the total is equal to 0.
+# According to the total coefficient, for every 1 increase in total, the sum score will decrease by 13.42.
+```
+
